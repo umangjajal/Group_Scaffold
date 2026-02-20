@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const Quota = require('../models/QuotaUsage'); // For message quota
 const Plans = require('../models/Plan');
 const User = require('../models/User');
+const { createCorsOriginValidator } = require('../config/cors');
 
 // New models for calling features
 const CallQuota = require('../models/CallQuota');
@@ -23,7 +24,7 @@ function dayKey() { return new Date().toISOString().slice(0, 10); }
 module.exports = function attachSocket(httpServer, onlineUsers) {
     const io = new Server(httpServer, {
         cors: {
-            origin: process.env.CORS_ORIGIN,
+            origin: createCorsOriginValidator(),
             credentials: true
         }
     });
