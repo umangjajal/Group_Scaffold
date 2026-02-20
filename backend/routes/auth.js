@@ -5,6 +5,11 @@ const User = require("../models/User");
 const Otp = require("../models/Otp");
 const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
 const auth = require("../middleware/auth");
+const { toUserResponse } = require("../utils/userResponse");
+
+function generateOtpCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 function generateOtpCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -39,7 +44,7 @@ const generateTokens = (user) => {
 
 // ================== REGISTER ==================
 router.post("/register", async (req, res) => {
-  const { email, phone, password, name } = req.body;
+  const { email, phone, password, name, gender } = req.body;
   if (!name || !looksRealName(name)) {
     return res.status(400).json({ error: "Invalid name." });
   }
@@ -62,12 +67,13 @@ router.post("/register", async (req, res) => {
       phone,
       passwordHash,
       name,
+      gender: ["male", "female", "other"].includes(gender) ? gender : "other",
       nameVerified: looksRealName(name),
     });
     await newUser.save();
 
     // ✅ Send OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = generateOtpCode();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     if (email) {
       await Otp.create({ channel: "email", value: email, code, expiresAt });
@@ -89,14 +95,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: "User registered. Verify email/phone.",
       user: {
-        id: newUser._id,
-        email: newUser.email,
-        phone: newUser.phone,
-        name: newUser.name,
-        role: newUser.role,
-        plan: newUser.plan,
-        emailVerified: newUser.emailVerified,
-        phoneVerified: newUser.phoneVerified,
+        ...toUserResponse(newUser),
         nameVerified: newUser.nameVerified,
         avatarUrl: newUser.avatarUrl,
         status: newUser.status,
@@ -131,6 +130,9 @@ router.post("/login", async (req, res) => {
 
     const { accessToken, refreshToken } = generateTokens(user);
     res.json({
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
+      user: toUserResponse(user),
+=======
       user: {
         id: user._id,
         email: user.email,
@@ -144,6 +146,7 @@ router.post("/login", async (req, res) => {
         status: user.status,
         createdAt: user.createdAt,
       },
+>>>>>>> main
       accessToken,
       refreshToken,
     });
@@ -185,7 +188,11 @@ router.get("/me", auth, async (req, res) => {
 
 // ================== UPDATE CURRENT USER ==================
 router.put("/me", auth, async (req, res) => {
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
+  const { name, avatarUrl, phone, gender } = req.body;
+=======
   const { name, avatarUrl, phone } = req.body;
+>>>>>>> main
 
   try {
     const user = await User.findById(req.user.id);
@@ -194,11 +201,18 @@ router.put("/me", auth, async (req, res) => {
     if (name) user.name = name;
     if (typeof avatarUrl === "string") user.avatarUrl = avatarUrl;
     if (phone) user.phone = phone;
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
+    if (["male", "female", "other"].includes(gender)) user.gender = gender;
+=======
+>>>>>>> main
 
     await user.save();
 
     return res.json({
       message: "Profile updated.",
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
+      user: toUserResponse(user),
+=======
       user: {
         id: user._id,
         email: user.email,
@@ -212,6 +226,7 @@ router.put("/me", auth, async (req, res) => {
         status: user.status,
         createdAt: user.createdAt,
       },
+>>>>>>> main
     });
   } catch (error) {
     console.error("Update /me error:", error);
