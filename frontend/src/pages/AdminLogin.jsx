@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,7 +18,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:4000/api/admin/login', {
+      const response = await axios.post(`${API_URL}/api/admin/login`, {
         email,
         password,
       });
