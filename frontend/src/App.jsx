@@ -11,6 +11,7 @@ import Call from './pages/Call';
 import RoomDashboard from './pages/RoomDashboard';
 import AdminPanel from './pages/AdminPanel';
 import AdminLogin from './pages/AdminLogin';
+import ForgotPassword from './pages/ForgotPassword';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function PrivateRoute({ children }) {
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify" element={<Verify />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
