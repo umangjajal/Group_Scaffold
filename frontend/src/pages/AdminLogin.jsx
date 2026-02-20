@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -94,19 +94,6 @@ export default function AdminLogin() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 pt-6 border-t border-slate-700">
-            <p className="text-slate-400 text-xs mb-3">Demo Credentials:</p>
-            <div className="space-y-2 text-sm bg-slate-700/50 p-3 rounded-lg border border-slate-600">
-              <p className="text-slate-300">
-                <span className="font-semibold text-slate-200">Email:</span> admin@realtime-group.com
-              </p>
-              <p className="text-slate-300">
-                <span className="font-semibold text-slate-200">Password:</span> admin@123456
-              </p>
-            </div>
-          </div>
 
           {/* Footer */}
           <div className="mt-6 text-center">

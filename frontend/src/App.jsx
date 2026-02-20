@@ -18,6 +18,11 @@ function PrivateRoute({ children }) {
   return user ? children : <Navigate to="/login" />;
 }
 
+function AdminRoute({ children }) {
+  const adminToken = localStorage.getItem('adminToken');
+  return adminToken ? children : <Navigate to="/admin-login" />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -29,7 +34,7 @@ export default function App() {
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/groups" element={<PrivateRoute><Groups /></PrivateRoute>} />
-        <Route path="/admin" element={<PrivateRoute><AdminPanel /></PrivateRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="/room/:roomId" element={<PrivateRoute><RoomDashboard /></PrivateRoute>} />
         <Route path="/groups/:groupId/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
         <Route path="/call/:sessionId" element={<PrivateRoute><Call /></PrivateRoute>} />

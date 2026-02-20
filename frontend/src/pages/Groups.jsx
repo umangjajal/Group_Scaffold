@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import RoomCreationModal from "../components/RoomCreationModal";
+import JoinByCodeModal from "../components/JoinByCodeModal";
 import RoomCard from "../components/RoomCard";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -12,6 +13,7 @@ export default function Groups() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all"); // all, public, private
@@ -129,6 +131,13 @@ export default function Groups() {
               >
                 👨‍💼 Admin
               </Link>
+              <button
+                onClick={() => setIsJoinCodeModalOpen(true)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
+              >
+                <span className="text-lg mr-2">🔐</span>
+                Join with Code
+              </button>
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="btn-primary bg-white text-blue-600 hover:bg-blue-50"
@@ -262,6 +271,19 @@ export default function Groups() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateRoom={createRoom}
+      />
+
+      {/* Join by Code Modal */}
+      <JoinByCodeModal
+        isOpen={isJoinCodeModalOpen}
+        onClose={() => setIsJoinCodeModalOpen(false)}
+        onSuccess={(groupId) => {
+          setIsJoinCodeModalOpen(false);
+          setMessage("Successfully joined the room! 🎉");
+          setTimeout(() => {
+            navigate(`/room/${groupId}`);
+          }, 500);
+        }}
       />
 
       {/* Floating Action Button (Mobile) */}

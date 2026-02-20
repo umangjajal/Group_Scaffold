@@ -42,6 +42,16 @@ export default function RoomCard({ room, onJoin, isMember }) {
           </p>
         )}
 
+        {/* Room Code for Private Rooms */}
+        {room.isPrivate && room.roomCode && (
+          <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div className="text-xs text-purple-600 font-medium mb-1">🔐 Room Code</div>
+            <div className="text-lg font-bold text-purple-700 font-mono tracking-widest">
+              {room.roomCode}
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="flex gap-4 mb-4 py-3 border-t border-gray-100">
           <div className="flex items-center gap-2">

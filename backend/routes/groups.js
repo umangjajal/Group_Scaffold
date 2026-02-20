@@ -6,6 +6,11 @@ const Membership = require("../models/Membership");
 const Message = require("../models/Message");
 const Plans = require("../models/Plan");
 
+// Helper function to generate 6-digit room code
+const generateRoomCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 // POST /api/groups - Create new group
 router.post("/", auth, canCreateGroup, async (req, res) => {
   const { name, description, isPrivate } = req.body;
@@ -22,6 +27,7 @@ router.post("/", auth, canCreateGroup, async (req, res) => {
       description,
       owner: req.user.id,
       isPrivate: isPrivate || false,
+      roomCode: isPrivate ? generateRoomCode() : null, // Generate 6-digit code for private rooms
       memberCount: 1, // ✅ default
       limits: { maxMembers: ownerPlan.maxMembersPerGroup },
     });
@@ -66,6 +72,49 @@ router.get("/", auth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching groups:", error);
     res.status(500).json({ error: "Server error fetching groups." });
+  }
+});
+
+// POST /api/groups/join-by-code - Join private room using 6-digit code
+router.post("/join-by-code", auth, canJoinGroup, async (req, res) => {
+  const { roomCode } = req.body;
+
+  if (!roomCode || roomCode.length !== 6) {
+    return res.status(400).json({ error: "Invalid room code. Code must be 6 digits." });
+  }
+
+  try {
+    const group = await Group.findOne({ roomCode, isPrivate: true });
+    if (!group) {
+      return res.status(404).json({ error: "Room code not found or room is not private." });
+    }
+
+    const existingMembership = await Membership.findOne({
+      user: req.user.id,
+      group: group._id,
+    });
+    if (existingMembership) {
+      return res.status(409).json({ error: "Already a member of this room." });
+    }
+
+    const ownerPlan = Plans[group.owner?.plan || "free"];
+    if (
+      group.memberCount >=
+      (group.limits?.maxMembers || ownerPlan.maxMembersPerGroup)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Room has reached its maximum member limit." });
+    }
+
+    await Membership.create({ user: req.user.id, group: group._id, role: "member" });
+    group.memberCount += 1;
+    await group.save();
+
+    res.json({ message: "Successfully joined the room.", groupId: group._id });
+  } catch (error) {
+    console.error("Error joining by code:", error);
+    res.status(500).json({ error: "Server error joining room." });
   }
 });
 

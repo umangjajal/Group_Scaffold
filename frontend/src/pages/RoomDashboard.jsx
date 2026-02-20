@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import io from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -10,6 +11,7 @@ export default function RoomDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const videoRef = useRef(null);
+  const socketRef = useRef(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isMicOn, setIsMicOn] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -43,6 +45,14 @@ export default function RoomDashboard() {
 
   useEffect(() => {
     checkMembershipAndFetchData();
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('leave', { groupId: roomId });
+        socketRef.current.disconnect();
+      }
+    };
   }, [roomId]);
 
   const checkMembershipAndFetchData = async () => {
@@ -67,11 +77,60 @@ export default function RoomDashboard() {
       }
       
       setMembers(res.data);
+      
+      // Initialize Socket.io connection
+      initializeSocket();
     } catch (err) {
       console.error('Error checking membership:', err);
       navigate('/groups');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const initializeSocket = () => {
+    try {
+      const userToken = localStorage.getItem('accessToken');
+      
+      socketRef.current = io(API_URL, {
+        auth: {
+          token: userToken,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+      });
+
+      // Join group chat room
+      socketRef.current.emit('join', { groupId: roomId });
+
+      // Listen for new messages
+      socketRef.current.on('message:new', (message) => {
+        setMessages(prev => [...prev, {
+          id: message._id,
+          text: message.text,
+          sender: message.sender.name,
+          senderImage: message.sender.avatarUrl,
+          timestamp: new Date(message.createdAt)
+        }]);
+      });
+
+      // Listen for typing indicators
+      socketRef.current.on('typing', (data) => {
+        console.log(`${data.userId} is typing...`);
+      });
+
+      // Error handling
+      socketRef.current.on('error', (error) => {
+        console.error('Socket error:', error);
+      });
+
+      socketRef.current.on('disconnect', () => {
+        console.log('Disconnected from chat');
+      });
+
+    } catch (err) {
+      console.error('Socket initialization error:', err);
     }
   };
 
@@ -83,9 +142,25 @@ export default function RoomDashboard() {
     setIsMicOn(!isMicOn);
   };
 
+  const fetchMembers = async () => {
+    try {
+      const res = await axiosAuth.get(`/api/groups/${roomId}/members`);
+      setMembers(res.data);
+    } catch (err) {
+      console.error('Error fetching members:', err);
+    }
+  };
+
   const sendMessage = () => {
-    if (messageInput.trim()) {
-      setMessages([...messages, { id: Date.now(), text: messageInput, sender: user.name, timestamp: new Date() }]);
+    if (messageInput.trim() && socketRef.current) {
+      // Emit message through Socket.io
+      socketRef.current.emit('message:send', {
+        groupId: roomId,
+        text: messageInput,
+        mediaUrl: null
+      });
+      
+      // Clear input
       setMessageInput('');
     }
   };
