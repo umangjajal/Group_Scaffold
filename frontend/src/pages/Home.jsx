@@ -1,63 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AppNavbar from '../components/AppNavbar';
 
 export default function Home() {
   const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-purple-900 text-white overflow-hidden">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-black/20 backdrop-blur z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="text-2xl font-bold">🎬 Realtime Group</div>
-          <div className="space-x-4">
-            {user ? (
-              <>
-                <Link
-                  to="/groups"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/profile"
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
-                >
-                  Profile
-                </Link>
-                <Link
-                  to="/admin-login"
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition"
-                >
-                  Admin
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/signup"
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
-                >
-                  Sign Up
-                </Link>
-                <Link
-                  to="/admin-login"
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition"
-                >
-                  Admin
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <AppNavbar />
 
       {/* Hero Section */}
       <div className="pt-20 pb-32 relative">
