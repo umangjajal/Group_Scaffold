@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import RoomCreationModal from "../components/RoomCreationModal";
 import JoinByCodeModal from "../components/JoinByCodeModal";
 import RoomCard from "../components/RoomCard";
+import AppNavbar from '../components/AppNavbar';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -15,6 +16,7 @@ export default function Groups() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [createdRoom, setCreatedRoom] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all"); // all, public, private
   const navigate = useNavigate();
@@ -49,7 +51,8 @@ export default function Groups() {
           try {
             // Try to fetch group details to check membership
             const memberRes = await axiosAuth.get(`/api/groups/${group._id}/members`);
-            const isMember = memberRes.data.some(m => m._id === user._id || m.userId === user._id);
+            const userId = user?._id || user?.id;
+            const isMember = memberRes.data.some((m) => (m.user && m.user._id === userId) || m.userId === userId || m._id === userId);
             return { ...group, isMember };
           } catch (err) {
             // Assume not a member if we can't check
@@ -73,12 +76,11 @@ export default function Groups() {
     setError("");
     try {
       const res = await axiosAuth.post("/api/groups", roomData);
-      const newRoomId = res.data.group._id;
+      const newRoom = res.data.group;
+      setCreatedRoom(newRoom);
+      setGroups((prev) => [{ ...newRoom, isMember: true }, ...prev]);
       setMessage("Room created successfully! 🎉");
       setIsModalOpen(false);
-      setTimeout(() => {
-        navigate(`/room/${newRoomId}`);
-      }, 500);
     } catch (err) {
       throw new Error(err.response?.data?.error || "Failed to create room");
     } finally {
@@ -116,6 +118,7 @@ export default function Groups() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <AppNavbar />
       {/* Header Section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
         <div className="container-main py-12">
@@ -186,6 +189,35 @@ export default function Groups() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">✅</span>
               <div className="text-green-700 font-medium">{message}</div>
+            </div>
+          </div>
+        )}
+
+
+        {createdRoom && (
+          <div className="mb-6 p-4 bg-indigo-50 border-l-4 border-indigo-500 rounded-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="font-semibold text-indigo-900">New room created: {createdRoom.name}</div>
+                <div className="text-sm text-indigo-700">Share this room code with friends.</div>
+                {createdRoom.roomCode && (
+                  <div className="mt-2 inline-flex items-center gap-2 bg-white px-3 py-2 rounded-md border border-indigo-200">
+                    <span className="font-mono font-bold tracking-widest text-indigo-700">{createdRoom.roomCode}</span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(createdRoom.roomCode)}
+                      className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => navigate(`/room/${createdRoom._id}`)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                Open Room
+              </button>
             </div>
           </div>
         )}
