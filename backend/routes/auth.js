@@ -11,6 +11,10 @@ function generateOtpCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function generateOtpCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // ✅ Validate names
 function looksRealName(name) {
   if (!name || name.length < 3) return false;
@@ -93,6 +97,9 @@ router.post("/register", async (req, res) => {
       user: {
         ...toUserResponse(newUser),
         nameVerified: newUser.nameVerified,
+        avatarUrl: newUser.avatarUrl,
+        status: newUser.status,
+        createdAt: newUser.createdAt,
       },
       accessToken,
       refreshToken,
@@ -123,7 +130,23 @@ router.post("/login", async (req, res) => {
 
     const { accessToken, refreshToken } = generateTokens(user);
     res.json({
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
       user: toUserResponse(user),
+=======
+      user: {
+        id: user._id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+      },
+>>>>>>> main
       accessToken,
       refreshToken,
     });
@@ -165,7 +188,11 @@ router.get("/me", auth, async (req, res) => {
 
 // ================== UPDATE CURRENT USER ==================
 router.put("/me", auth, async (req, res) => {
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
   const { name, avatarUrl, phone, gender } = req.body;
+=======
+  const { name, avatarUrl, phone } = req.body;
+>>>>>>> main
 
   try {
     const user = await User.findById(req.user.id);
@@ -174,13 +201,32 @@ router.put("/me", auth, async (req, res) => {
     if (name) user.name = name;
     if (typeof avatarUrl === "string") user.avatarUrl = avatarUrl;
     if (phone) user.phone = phone;
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
     if (["male", "female", "other"].includes(gender)) user.gender = gender;
+=======
+>>>>>>> main
 
     await user.save();
 
     return res.json({
       message: "Profile updated.",
+<<<<<<< codex/fix-vercel-deployment-login-issue-qh4exd
       user: toUserResponse(user),
+=======
+      user: {
+        id: user._id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+      },
+>>>>>>> main
     });
   } catch (error) {
     console.error("Update /me error:", error);
