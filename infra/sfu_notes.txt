@@ -1,0 +1,5 @@
+SFU options:
+- mediasoup: powerful, self-hosted, Node.js based. Complex but flexible.
+- Janus: C library with plugins.
+- Jitsi: ready-made conferencing stack (heavy).
+- Daily / Agora / Twilio: managed services (simpler integration, costs).
