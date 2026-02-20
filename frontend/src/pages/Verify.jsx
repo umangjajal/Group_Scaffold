@@ -42,7 +42,7 @@ export default function Verify() {
       if (err.response) {
         errorMsg = err.response.data?.error || errorMsg;
       } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'OTP service timed out. Please check SMTP configuration and try again.';
+        errorMsg = 'OTP service timed out. Please check EMAIL_USER and EMAIL_APP_PASSWORD configuration and try again.';
       } else if (err.request) {
         errorMsg = 'Server not responding. Check API URL / backend deployment.';
       } else {
@@ -82,7 +82,7 @@ export default function Verify() {
       if (err.response) {
         errorMsg = err.response.data?.error || errorMsg;
       } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'OTP service timed out. Please check SMTP configuration and try again.';
+        errorMsg = 'OTP service timed out. Please check EMAIL_USER and EMAIL_APP_PASSWORD configuration and try again.';
       } else if (err.request) {
         errorMsg = 'Server not responding. Check API URL / backend deployment.';
       } else {
