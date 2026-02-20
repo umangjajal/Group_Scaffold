@@ -34,14 +34,20 @@ export default function Verify() {
       const response = await axios.post(
         `${API_URL}/api/verify/send-otp`,
         { channel, value },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 10000 }
+        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 20000 }
       );
       setMessage(response.data.message || `OTP sent to your ${channel}`);
     } catch (err) {
       let errorMsg = 'Failed to send OTP. Please try again.';
-      if (err.response) errorMsg = err.response.data?.error || errorMsg;
-      else if (err.request) errorMsg = 'Server not responding. Please check your connection.';
-      else errorMsg = err.message || errorMsg;
+      if (err.response) {
+        errorMsg = err.response.data?.error || errorMsg;
+      } else if (err.code === 'ECONNABORTED') {
+        errorMsg = 'OTP service timed out. Please check SMTP configuration and try again.';
+      } else if (err.request) {
+        errorMsg = 'Server not responding. Check API URL / backend deployment.';
+      } else {
+        errorMsg = err.message || errorMsg;
+      }
 
       setError(errorMsg);
     } finally {
@@ -58,7 +64,7 @@ export default function Verify() {
       const response = await axios.post(
         `${API_URL}/api/verify/verify-otp`,
         { channel, value, code },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 10000 }
+        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 20000 }
       );
 
       if (response.data.user) {
@@ -73,9 +79,15 @@ export default function Verify() {
       setTimeout(() => navigate('/groups'), 1000);
     } catch (err) {
       let errorMsg = 'Invalid OTP. Please try again.';
-      if (err.response) errorMsg = err.response.data?.error || errorMsg;
-      else if (err.request) errorMsg = 'Server not responding. Please check your connection.';
-      else errorMsg = err.message || errorMsg;
+      if (err.response) {
+        errorMsg = err.response.data?.error || errorMsg;
+      } else if (err.code === 'ECONNABORTED') {
+        errorMsg = 'OTP service timed out. Please check SMTP configuration and try again.';
+      } else if (err.request) {
+        errorMsg = 'Server not responding. Check API URL / backend deployment.';
+      } else {
+        errorMsg = err.message || errorMsg;
+      }
 
       setError(errorMsg);
     } finally {

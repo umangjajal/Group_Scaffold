@@ -10,6 +10,15 @@ function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+    }),
+  ]);
+}
+
 router.post("/send-otp", auth, async (req, res) => {
   try {
     const { channel, value } = req.body;
@@ -44,15 +53,16 @@ router.post("/send-otp", auth, async (req, res) => {
     });
 
     if (channel === "email") {
-      await sendEmailOtp(normalizedValue, otp);
+      await withTimeout(sendEmailOtp(normalizedValue, otp), 8000, "Email OTP delivery");
       return res.json({ success: true, message: "OTP sent to your email" });
     }
 
-    await sendSmsOtp(normalizedValue, otp);
+    await withTimeout(sendSmsOtp(normalizedValue, otp), 8000, "SMS OTP delivery");
     return res.json({ success: true, message: "OTP sent to your phone" });
   } catch (error) {
     console.error("❌ Error sending OTP:", error.message);
-    return res.status(500).json({ error: "Failed to send OTP" });
+    const statusCode = error.message.includes("timeout") ? 504 : 500;
+    return res.status(statusCode).json({ error: `Failed to send OTP: ${error.message}` });
   }
 });
 
