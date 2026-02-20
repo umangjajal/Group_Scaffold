@@ -6,6 +6,10 @@ const Otp = require("../models/Otp");
 const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
 const auth = require("../middleware/auth");
 
+function generateOtpCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // ✅ Validate names
 function looksRealName(name) {
   if (!name || name.length < 3) return false;
@@ -35,7 +39,7 @@ const generateTokens = (user) => {
 
 // ================== REGISTER ==================
 router.post("/register", async (req, res) => {
-  const { email, phone, password, name } = req.body;
+  const { email, phone, password, name, gender } = req.body;
   if (!name || !looksRealName(name)) {
     return res.status(400).json({ error: "Invalid name." });
   }
@@ -58,6 +62,7 @@ router.post("/register", async (req, res) => {
       phone,
       passwordHash,
       name,
+      gender: ["male", "female", "other"].includes(gender) ? gender : "other",
       nameVerified: looksRealName(name),
     });
     await newUser.save();
@@ -94,6 +99,10 @@ router.post("/register", async (req, res) => {
         emailVerified: newUser.emailVerified,
         phoneVerified: newUser.phoneVerified,
         nameVerified: newUser.nameVerified,
+        avatarUrl: newUser.avatarUrl,
+        status: newUser.status,
+        gender: newUser.gender,
+        createdAt: newUser.createdAt,
       },
       accessToken,
       refreshToken,
@@ -131,6 +140,12 @@ router.post("/login", async (req, res) => {
         name: user.name,
         role: user.role,
         plan: user.plan,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        status: user.status,
+        gender: user.gender,
+        createdAt: user.createdAt,
       },
       accessToken,
       refreshToken,
@@ -168,6 +183,104 @@ router.get("/me", auth, async (req, res) => {
   } catch (error) {
     console.error("Get /me error:", error);
     res.status(500).json({ error: "Server error." });
+  }
+});
+
+// ================== UPDATE CURRENT USER ==================
+router.put("/me", auth, async (req, res) => {
+  const { name, avatarUrl, phone, gender } = req.body;
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    if (name) user.name = name;
+    if (typeof avatarUrl === "string") user.avatarUrl = avatarUrl;
+    if (phone) user.phone = phone;
+    if (["male", "female", "other"].includes(gender)) user.gender = gender;
+
+    await user.save();
+
+    return res.json({
+      message: "Profile updated.",
+      user: {
+        id: user._id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        status: user.status,
+        gender: user.gender,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Update /me error:", error);
+    return res.status(500).json({ error: "Server error." });
+  }
+});
+
+// ================== FORGOT PASSWORD (SEND OTP) ==================
+router.post("/forgot-password/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "No account found with this email." });
+    }
+
+    const code = generateOtpCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await Otp.create({ channel: "email", value: email, code, expiresAt, consumed: false });
+    await sendEmailOtp(email, code);
+
+    return res.json({ message: "OTP sent to your registered email." });
+  } catch (error) {
+    console.error("Forgot password send OTP error:", error.message);
+    return res.status(500).json({ error: "Failed to send OTP." });
+  }
+});
+
+// ================== FORGOT PASSWORD (RESET) ==================
+router.post("/forgot-password/reset", async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ error: "Email, OTP code, and new password are required." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "No account found with this email." });
+    }
+
+    const otpRecord = await Otp.findOne({ channel: "email", value: email, code, consumed: false }).sort({ createdAt: -1 });
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid OTP." });
+    }
+    if (new Date() > otpRecord.expiresAt) {
+      return res.status(400).json({ error: "OTP expired." });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    otpRecord.consumed = true;
+    await otpRecord.save();
+
+    return res.json({ message: "Password reset successful." });
+  } catch (error) {
+    console.error("Forgot password reset error:", error.message);
+    return res.status(500).json({ error: "Failed to reset password." });
   }
 });
 

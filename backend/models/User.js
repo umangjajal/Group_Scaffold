@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
     phoneVerified: { type: Boolean, default: false },
     name: { type: String, required: true, trim: true },
     nameVerified: { type: Boolean, default: false },
+    gender: { type: String, enum: ['male', 'female', 'other'], default: 'other' },
     avatarUrl: String,
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     plan: { type: String, enum: ['free', 'premium', 'vip', 'viip'], default: 'free' },
