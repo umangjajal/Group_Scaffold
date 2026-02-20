@@ -94,6 +94,9 @@ router.post("/register", async (req, res) => {
       user: {
         ...toUserResponse(newUser),
         nameVerified: newUser.nameVerified,
+        avatarUrl: newUser.avatarUrl,
+        status: newUser.status,
+        createdAt: newUser.createdAt,
       },
       accessToken,
       refreshToken,
