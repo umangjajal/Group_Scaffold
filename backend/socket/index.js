@@ -7,7 +7,6 @@ const Plans = require('../models/Plan');
 const User = require('../models/User');
 const { createCorsOriginValidator } = require('../config/cors');
 const registerCollabSocket = require('./collab');
-const registerTerminalSocket = require('./terminal');
 
 // New models for calling features
 const CallQuota = require('../models/CallQuota');
@@ -166,7 +165,6 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
 
         // --- Group Chat Events (from previous implementation) ---
         registerCollabSocket(io, socket);
-        registerTerminalSocket(io, socket);
 
         socket.on('join', ({ groupId }) => {
             socket.join(`group:${groupId}`);

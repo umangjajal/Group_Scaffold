@@ -7,16 +7,9 @@ const CollabFile = require('../models/CollabFile');
 const CollabVersion = require('../models/CollabVersion');
 const ActivityLog = require('../models/ActivityLog');
 const { execFile } = require('child_process');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-const ALLOWED_EXTENSIONS = new Set([
-  '.txt', '.md', '.doc', '.docx', '.pdf', '.csv', '.xlsx', '.xls', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.zip'
-]);
 
 async function ensureMembership(groupId, userId) {
   return Membership.findOne({ group: groupId, user: userId });
@@ -226,94 +219,6 @@ router.post('/code/run', async (req, res) => {
       : `Code execution failed: ${error.message}`;
 
     return res.status(/ENOENT/.test(error.message) ? 503 : 500).json({ error: message, stderr: error.stderr || '' });
-  }
-});
-
-
-router.post('/groups/:groupId/upload', upload.single('file'), async (req, res) => {
-  const { groupId } = req.params;
-  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
-
-  const membership = await ensureMembership(groupId, req.user.id);
-  if (!membership) return res.status(403).json({ error: 'Not a group member.' });
-
-  if (!req.file) return res.status(400).json({ error: 'file is required.' });
-
-  const ext = path.extname(req.file.originalname || '').toLowerCase();
-  if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return res.status(400).json({ error: `Unsupported file extension: ${ext || 'unknown'}` });
-  }
-
-  const isTextLike = ['.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.csv'].includes(ext);
-  const type = ['.csv', '.xlsx', '.xls'].includes(ext) ? 'spreadsheet' : (['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.json'].includes(ext) ? 'code' : 'document');
-
-  const content = isTextLike
-    ? { text: req.file.buffer.toString('utf8') }
-    : { binary: true, originalName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size };
-
-  const file = await CollabFile.create({
-    group: groupId,
-    name: req.file.originalname,
-    type,
-    content,
-    createdBy: req.user.id,
-  });
-
-  await CollabVersion.create({
-    file: file._id,
-    group: groupId,
-    version: 1,
-    branch: 'main',
-    snapshot: content,
-    patchSummary: 'Uploaded file',
-    author: req.user.id,
-  });
-
-  await ActivityLog.create({
-    group: groupId,
-    file: file._id,
-    user: req.user.id,
-    action: 'file_uploaded',
-    metadata: { name: req.file.originalname, ext },
-  });
-
-  return res.status(201).json(file);
-});
-
-router.post('/git/push', async (req, res) => {
-  const { groupId, commitMessage = 'collab update', branch = 'main' } = req.body;
-  if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
-  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
-
-  const membership = await ensureMembership(groupId, req.user.id);
-  if (!membership) return res.status(403).json({ error: 'Not a group member.' });
-
-  if (!['owner', 'moderator'].includes(membership.role)) {
-    return res.status(403).json({ error: 'Only owner/moderator can push to git.' });
-  }
-
-  try {
-    const repoDir = process.env.GIT_REPO_PATH || process.cwd();
-    const { stdout: status } = await execFileAsync('git', ['-C', repoDir, 'status', '--porcelain']);
-
-    if (!status.trim()) {
-      return res.json({ success: true, message: 'No changes to push.' });
-    }
-
-    await execFileAsync('git', ['-C', repoDir, 'add', '.']);
-    await execFileAsync('git', ['-C', repoDir, 'commit', '-m', String(commitMessage)]);
-    const pushRes = await execFileAsync('git', ['-C', repoDir, 'push', 'origin', String(branch)]);
-
-    await ActivityLog.create({
-      group: groupId,
-      user: req.user.id,
-      action: 'git_push',
-      metadata: { branch, commitMessage },
-    });
-
-    return res.json({ success: true, message: 'Pushed to git successfully.', output: (pushRes.stdout || '') + (pushRes.stderr || '') });
-  } catch (error) {
-    return res.status(500).json({ error: `Git push failed: ${error.message}` });
   }
 });
 
