@@ -6,6 +6,8 @@ const User = require("../models/User");
 const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
 const { toUserResponse } = require("../utils/userResponse");
 
+const OTP_DELIVERY_TIMEOUT_MS = Number(process.env.OTP_DELIVERY_TIMEOUT_MS || 20000);
+
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -44,6 +46,12 @@ router.post("/send-otp", auth, async (req, res) => {
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+    if (channel === "email") {
+      await withTimeout(sendEmailOtp(normalizedValue, otp), OTP_DELIVERY_TIMEOUT_MS, "Email OTP delivery");
+    } else {
+      await withTimeout(sendSmsOtp(normalizedValue, otp), OTP_DELIVERY_TIMEOUT_MS, "SMS OTP delivery");
+    }
+
     await Otp.create({
       channel,
       value: normalizedValue,
@@ -52,13 +60,8 @@ router.post("/send-otp", auth, async (req, res) => {
       consumed: false,
     });
 
-    if (channel === "email") {
-      await withTimeout(sendEmailOtp(normalizedValue, otp), 8000, "Email OTP delivery");
-      return res.json({ success: true, message: "OTP sent to your email" });
-    }
-
-    await withTimeout(sendSmsOtp(normalizedValue, otp), 8000, "SMS OTP delivery");
-    return res.json({ success: true, message: "OTP sent to your phone" });
+    const message = channel === "email" ? "OTP sent to your email" : "OTP sent to your phone";
+    return res.json({ success: true, message });
   } catch (error) {
     console.error("❌ Error sending OTP:", error.message);
     const statusCode = error.message.includes("timeout") ? 504 : 500;
