@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Membership = require('../models/Membership');
 const CollabFile = require('../models/CollabFile');
 const CollabVersion = require('../models/CollabVersion');
@@ -12,6 +13,10 @@ function ensureMap(map, key, fallback) {
   return map.get(key);
 }
 
+function isValidObjectId(value) {
+  return Boolean(value) && mongoose.isValidObjectId(value);
+}
+
 function applyTextDelta(text, delta = {}) {
   const from = Math.max(0, Number(delta.from || 0));
   const to = Math.max(from, Number(delta.to || from));
@@ -20,7 +25,20 @@ function applyTextDelta(text, delta = {}) {
 }
 
 module.exports = function registerCollabSocket(io, socket) {
-  socket.on('collab:file:join', async ({ fileId }) => {
+  function onSafe(event, handler) {
+    socket.on(event, async (payload = {}) => {
+      try {
+        await handler(payload);
+      } catch (error) {
+        console.error(`collab socket error (${event}):`, error.message);
+        socket.emit('error', { message: 'Collaboration action failed. Please retry.' });
+      }
+    });
+  }
+
+  onSafe('collab:file:join', async ({ fileId }) => {
+    if (!isValidObjectId(fileId)) return;
+
     const file = await CollabFile.findById(fileId);
     if (!file) return socket.emit('error', { message: 'File not found.' });
 
@@ -41,14 +59,15 @@ module.exports = function registerCollabSocket(io, socket) {
       cursors,
     });
 
-    io.to(`file:${fileId}`).emit('collab:file:presence', {
+    socket.to(`file:${fileId}`).emit('collab:file:presence', {
       fileId,
       user: { id: socket.user.id, name: socket.user.name },
       status: 'online',
     });
   });
 
-  socket.on('collab:file:leave', ({ fileId }) => {
+  onSafe('collab:file:leave', async ({ fileId }) => {
+    if (!fileId) return;
     socket.leave(`file:${fileId}`);
     const cursorMap = fileCursorState.get(String(fileId));
     if (cursorMap) {
@@ -56,7 +75,9 @@ module.exports = function registerCollabSocket(io, socket) {
     }
   });
 
-  socket.on('collab:file:cursor', ({ fileId, position, selection }) => {
+  onSafe('collab:file:cursor', async ({ fileId, position, selection }) => {
+    if (!isValidObjectId(fileId)) return;
+
     const cursorMap = ensureMap(fileCursorState, String(fileId), () => new Map());
     cursorMap.set(socket.user.id.toString(), {
       position: Number(position || 0),
@@ -73,7 +94,9 @@ module.exports = function registerCollabSocket(io, socket) {
     });
   });
 
-  socket.on('collab:file:patch', async ({ fileId, delta, patchSummary = 'Live patch' }) => {
+  onSafe('collab:file:patch', async ({ fileId, delta, patchSummary = 'Live patch' }) => {
+    if (!isValidObjectId(fileId)) return;
+
     const file = await CollabFile.findById(fileId);
     if (!file) return;
 
@@ -146,7 +169,8 @@ module.exports = function registerCollabSocket(io, socket) {
     });
   });
 
-  socket.on('collab:file:comment', async ({ fileId, text, line = null, mentions = [] }) => {
+  onSafe('collab:file:comment', async ({ fileId, text, line = null, mentions = [] }) => {
+    if (!isValidObjectId(fileId)) return;
     if (!text || !String(text).trim()) return;
 
     const file = await CollabFile.findById(fileId);
@@ -155,7 +179,7 @@ module.exports = function registerCollabSocket(io, socket) {
     const membership = await Membership.findOne({ group: file.group, user: socket.user.id });
     if (!membership) return;
 
-    const mentionIds = mentions.map((id) => String(id));
+    const mentionIds = mentions.filter(isValidObjectId).map((id) => String(id));
     file.comments.unshift({
       author: socket.user.id,
       text: String(text).trim(),
@@ -183,7 +207,8 @@ module.exports = function registerCollabSocket(io, socket) {
     io.to(`file:${fileId}`).emit('collab:file:commented', { fileId, comment });
   });
 
-  socket.on('notification:mark-read', async ({ notificationId }) => {
+  onSafe('notification:mark-read', async ({ notificationId }) => {
+    if (!isValidObjectId(notificationId)) return;
     await Notification.updateOne({ _id: notificationId, user: socket.user.id }, { $set: { readAt: new Date() } });
   });
 

@@ -95,11 +95,13 @@ export default function Collaboration() {
   }
 
   function onTextChange(nextValue) {
+    if (!selectedFileId) return;
     const delta = { from: 0, to: textValue.length, text: nextValue };
     socket.emit('collab:file:patch', { fileId: selectedFileId, delta, patchSummary: 'Live text sync' });
   }
 
   function onSpreadsheetCellChange(cellId, value) {
+    if (!selectedFileId) return;
     socket.emit('collab:file:patch', { fileId: selectedFileId, delta: { cellId, value, lock: true }, patchSummary: `Cell ${cellId} updated` });
   }
 
@@ -140,7 +142,7 @@ export default function Collaboration() {
       <main className="xl:col-span-6 bg-slate-900 rounded-lg p-3 space-y-3">
         <div className="flex justify-between items-center">
           <h2 className="font-semibold">{selectedFile?.name || 'Select a file'}</h2>
-          <button onClick={saveVersion} className="px-3 py-1 bg-emerald-600 rounded text-sm">Save version</button>
+          <button onClick={saveVersion} disabled={!selectedFileId} className="px-3 py-1 bg-emerald-600 rounded text-sm disabled:opacity-50">Save version</button>
         </div>
 
         {selectedFile?.type !== 'spreadsheet' && (

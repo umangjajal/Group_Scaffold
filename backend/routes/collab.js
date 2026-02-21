@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
 const rateLimit = require('../middleware/rateLimit');
 const Membership = require('../models/Membership');
@@ -14,10 +15,16 @@ async function ensureMembership(groupId, userId) {
   return Membership.findOne({ group: groupId, user: userId });
 }
 
+
+function isValidId(value) {
+  return Boolean(value) && mongoose.isValidObjectId(value);
+}
+
 router.use(auth, rateLimit({ windowMs: 60000, max: 240 }));
 
 router.get('/groups/:groupId/files', async (req, res) => {
   const { groupId } = req.params;
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
   const membership = await ensureMembership(groupId, req.user.id);
   if (!membership) return res.status(403).json({ error: 'Not a group member.' });
 
@@ -30,6 +37,7 @@ router.post('/groups/:groupId/files', async (req, res) => {
   const { name, type } = req.body;
 
   if (!name || !type) return res.status(400).json({ error: 'name and type are required.' });
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
 
   const membership = await ensureMembership(groupId, req.user.id);
   if (!membership) return res.status(403).json({ error: 'Not a group member.' });
@@ -67,6 +75,7 @@ router.post('/groups/:groupId/files', async (req, res) => {
 });
 
 router.get('/files/:fileId', async (req, res) => {
+  if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
 
@@ -77,6 +86,7 @@ router.get('/files/:fileId', async (req, res) => {
 });
 
 router.get('/files/:fileId/history', async (req, res) => {
+  if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
 
@@ -91,6 +101,7 @@ router.get('/files/:fileId/history', async (req, res) => {
 });
 
 router.post('/files/:fileId/versions', async (req, res) => {
+  if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
 
@@ -123,6 +134,7 @@ router.post('/files/:fileId/versions', async (req, res) => {
 });
 
 router.post('/files/:fileId/restore/:version', async (req, res) => {
+  if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
 
@@ -163,6 +175,7 @@ router.post('/files/:fileId/restore/:version', async (req, res) => {
 router.post('/code/run', async (req, res) => {
   const { groupId, code = '', language = 'javascript' } = req.body;
   if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
 
   const membership = await ensureMembership(groupId, req.user.id);
   if (!membership) return res.status(403).json({ error: 'Not a group member.' });
@@ -212,6 +225,7 @@ router.post('/code/run', async (req, res) => {
 router.get('/activity', async (req, res) => {
   const { groupId, userId, action } = req.query;
   if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
 
   const membership = await ensureMembership(groupId, req.user.id);
   if (!membership) return res.status(403).json({ error: 'Not a group member.' });
