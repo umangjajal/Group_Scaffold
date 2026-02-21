@@ -1,10 +1,12 @@
-import { io } from "socket.io-client";
+import { io } from 'socket.io-client';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 function getToken() {
-  return localStorage.getItem("token") || "user:1";
+  return localStorage.getItem('accessToken') || '';
 }
 
-export const socket = io("http://localhost:5000", {
+export const socket = io(API_URL, {
   autoConnect: false,
   withCredentials: true,
   auth: { token: getToken() },
@@ -12,9 +14,12 @@ export const socket = io("http://localhost:5000", {
 
 export function connectSocket() {
   socket.auth = { token: getToken() };
-  socket.connect();
+  if (!socket.connected) {
+    socket.connect();
+  }
 
-  socket.on("connect_error", (err) =>
-    console.error("socket connect_error", err.message)
-  );
+  socket.off('connect_error');
+  socket.on('connect_error', (err) => {
+    console.error('socket connect_error', err.message);
+  });
 }
