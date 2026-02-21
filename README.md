@@ -1,9 +1,9 @@
 # Realtime Group App - Scaffold
 This scaffold includes:
-- Backend: Node.js + Express + Socket.IO signaling server (offer/answer/candidates) with quota enforcement (demo/in-memory + Mongoose-ready).
-- Frontend: Vite + React simple app with CallPreview and InCall WebRTC sample components.
+- Backend: Node.js + Express + Socket.IO signaling server (P2P call + multi-participant meeting signaling) with quota enforcement.
+- Frontend: Vite + React room dashboard with live video grid, chat, and realtime task board.
 
-This is a minimal starting point for development. Copy `.env.example` to `.env` and update required values before running the app.
+This is a collaboration-focused scaffold. Copy `.env.example` values into `backend/.env` and `frontend/.env` before running.
 
 Run backend:
 ```bash

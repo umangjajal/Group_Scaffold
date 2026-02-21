@@ -69,18 +69,18 @@ async function sendEmailOtp(toEmail, otpCode) {
 }
 
 const twilioSid = process.env.TWILIO_SID;
-const twilioToken = process.env.TWILIO_TOKEN;
+const twilioToken = process.env.TWILIO_TOKEN || process.env.TWILIO_AUTH;
 const twilioClient = twilioSid && twilioToken ? twilio(twilioSid, twilioToken) : null;
 
 async function sendSmsOtp(toPhoneNumber, otpCode) {
   try {
     if (!twilioClient) {
-      throw new Error('Twilio is not configured. Set TWILIO_SID and TWILIO_TOKEN.');
+      throw new Error('Twilio is not configured. Set TWILIO_SID and TWILIO_TOKEN (or TWILIO_AUTH).');
     }
 
     await twilioClient.messages.create({
       body: `Your OTP for Realtime Group App is: ${otpCode}. This code is valid for 10 minutes.`,
-      from: process.env.TWILIO_FROM,
+      from: process.env.TWILIO_FROM || process.env.TWILIO_PHONE,
       to: toPhoneNumber,
     });
 

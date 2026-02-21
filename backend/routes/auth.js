@@ -40,7 +40,9 @@ const generateTokens = (user) => {
 };
 
 router.post("/register", async (req, res) => {
-  const { email, phone, password, name, gender } = req.body;
+  const { password, name, gender } = req.body;
+  const email = req.body.email ? String(req.body.email).trim().toLowerCase() : "";
+  const phone = req.body.phone ? String(req.body.phone).trim() : "";
 
   if (!name || !looksRealName(name)) {
     return res.status(400).json({ error: "Invalid name." });
@@ -53,15 +55,22 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+    const duplicateChecks = [];
+    if (email) duplicateChecks.push({ email });
+    if (phone) duplicateChecks.push({ phone });
+
+    const existingUser = duplicateChecks.length > 0
+      ? await User.findOne({ $or: duplicateChecks })
+      : null;
+
     if (existingUser) {
-      return res.status(409).json({ error: "User already exists." });
+      return res.status(409).json({ error: "User already exists with this email/phone." });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = new User({
-      email,
-      phone,
+      email: email || undefined,
+      phone: phone || undefined,
       passwordHash,
       name,
       gender: ["male", "female", "other"].includes(gender) ? gender : "other",
@@ -108,7 +117,9 @@ router.post("/register", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { identifier, password } = req.body;
+  const password = req.body.password;
+  const identifierInput = req.body.identifier || req.body.email || req.body.phone;
+  const identifier = identifierInput ? String(identifierInput).trim() : "";
 
   if (!identifier || !password) {
     return res
@@ -117,8 +128,9 @@ router.post("/login", async (req, res) => {
   }
 
   try {
+    const normalizedEmail = identifier.toLowerCase();
     const user = await User.findOne({
-      $or: [{ email: identifier }, { phone: identifier }],
+      $or: [{ email: normalizedEmail }, { phone: identifier }],
     });
 
     if (!user) return res.status(400).json({ error: "Invalid credentials." });
