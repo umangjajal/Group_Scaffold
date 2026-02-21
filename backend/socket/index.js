@@ -6,6 +6,8 @@ const Quota = require('../models/QuotaUsage'); // For message quota
 const Plans = require('../models/Plan');
 const User = require('../models/User');
 const { createCorsOriginValidator } = require('../config/cors');
+const registerCollabSocket = require('./collab');
+const registerTerminalSocket = require('./terminal');
 
 // New models for calling features
 const CallQuota = require('../models/CallQuota');
@@ -18,6 +20,10 @@ const randomMatchQueue = {
     video: []
 };
 
+// In-memory room collaboration stores
+const meetingParticipants = new Map(); // groupId -> Map<userId, { socketId, name }>
+const groupTasks = new Map(); // groupId -> Task[]
+
 // Helper to get current day key for quotas
 function dayKey() { return new Date().toISOString().slice(0, 10); }
 
@@ -28,6 +34,11 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
             credentials: true
         }
     });
+
+
+    if (String(process.env.SOCKET_REDIS_ENABLED || 'false') === 'true') {
+        console.log('ℹ️ SOCKET_REDIS_ENABLED=true. Install @socket.io/redis-adapter + redis and wire adapter for horizontal scaling.');
+    }
 
     // Socket.IO middleware for authentication
     io.use(async (socket, next) => {
@@ -70,6 +81,9 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
         io.emit('presence', { userId: socket.user.id, status: 'online' });
 
         // --- Group Chat Events (from previous implementation) ---
+        registerCollabSocket(io, socket);
+        registerTerminalSocket(io, socket);
+
         socket.on('join', ({ groupId }) => {
             socket.join(`group:${groupId}`);
             console.log(`${socket.user.name} joined group:${groupId}`);
@@ -80,6 +94,115 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
             socket.leave(`group:${groupId}`);
             console.log(`${socket.user.name} left group:${groupId}`);
             io.to(`group:${groupId}`).emit('presence', { userId: socket.user.id, status: 'offline', groupId });
+        });
+
+        // --- Meeting events (multi-party WebRTC mesh signaling) ---
+        socket.on('meeting:join', ({ groupId }) => {
+            if (!groupId) return;
+
+            socket.join(`meeting:${groupId}`);
+
+            const key = String(groupId);
+            const participantsForRoom = meetingParticipants.get(key) || new Map();
+            const existingParticipants = Array.from(participantsForRoom.entries()).map(([id, participant]) => ({
+                id,
+                name: participant.name,
+            }));
+
+            participantsForRoom.set(socket.user.id.toString(), {
+                socketId: socket.id,
+                name: socket.user.name,
+            });
+            meetingParticipants.set(key, participantsForRoom);
+
+            socket.emit('meeting:participants', { groupId, participants: existingParticipants });
+            socket.to(`meeting:${groupId}`).emit('meeting:peer-joined', {
+                groupId,
+                peer: { id: socket.user.id, name: socket.user.name },
+            });
+        });
+
+        socket.on('meeting:signal', ({ groupId, to, signal }) => {
+            if (!groupId || !to || !signal) return;
+            io.to(`user:${to}`).emit('meeting:signal', {
+                groupId,
+                from: socket.user.id,
+                signal,
+            });
+        });
+
+        socket.on('meeting:leave', ({ groupId }) => {
+            if (!groupId) return;
+            socket.leave(`meeting:${groupId}`);
+            const key = String(groupId);
+            const participantsForRoom = meetingParticipants.get(key);
+            if (!participantsForRoom) return;
+
+            participantsForRoom.delete(socket.user.id.toString());
+            if (participantsForRoom.size === 0) {
+                meetingParticipants.delete(key);
+                groupTasks.delete(key);
+            } else {
+                meetingParticipants.set(key, participantsForRoom);
+            }
+
+            socket.to(`meeting:${groupId}`).emit('meeting:peer-left', {
+                groupId,
+                peerId: socket.user.id,
+            });
+        });
+
+        // --- Task management events (real-time Kanban-lite) ---
+        socket.on('task:list', ({ groupId }) => {
+            if (!groupId) return;
+            const tasks = groupTasks.get(String(groupId)) || [];
+            socket.emit('task:list', { groupId, tasks });
+        });
+
+        socket.on('task:create', ({ groupId, title }) => {
+            if (!groupId || !String(title || '').trim()) return;
+            const key = String(groupId);
+            const tasks = groupTasks.get(key) || [];
+            const task = {
+                id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                title: String(title).trim(),
+                completed: false,
+                version: 1,
+                updatedAt: new Date().toISOString(),
+                createdBy: {
+                    id: socket.user.id,
+                    name: socket.user.name,
+                },
+            };
+            tasks.unshift(task);
+            groupTasks.set(key, tasks);
+            io.to(`group:${groupId}`).emit('task:upsert', { groupId, task });
+        });
+
+        socket.on('task:toggle', ({ groupId, taskId, completed }) => {
+            if (!groupId || !taskId) return;
+            const key = String(groupId);
+            const tasks = groupTasks.get(key) || [];
+            const index = tasks.findIndex((task) => task.id === taskId);
+            if (index === -1) return;
+
+            tasks[index] = {
+                ...tasks[index],
+                completed: Boolean(completed),
+                version: (tasks[index].version || 1) + 1,
+                updatedAt: new Date().toISOString(),
+            };
+            groupTasks.set(key, tasks);
+            io.to(`group:${groupId}`).emit('task:upsert', { groupId, task: tasks[index] });
+        });
+
+        socket.on('task:delete', ({ groupId, taskId }) => {
+            if (!groupId || !taskId) return;
+            const key = String(groupId);
+            const tasks = groupTasks.get(key) || [];
+            const nextTasks = tasks.filter((task) => task.id !== taskId);
+            groupTasks.set(key, nextTasks);
+            io.to(`group:${groupId}`).emit('task:delete', { groupId, taskId });
         });
 
         socket.on('message:send', async ({ groupId, text, mediaUrl }) => {
@@ -445,15 +568,33 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
 
         socket.on('disconnect', () => {
             console.log(`User disconnected: ${socket.user.name} (${socket.user.id})`);
-            
+
             // Remove user from online tracking
             onlineUsers.delete(socket.user.id.toString());
-            
+
             io.emit('presence', { userId: socket.user.id, status: 'offline' });
 
             // Remove user from any random matching queues
             for (const type of ['audio', 'video']) {
                 randomMatchQueue[type] = randomMatchQueue[type].filter(entry => entry.socketId !== socket.id);
+            }
+
+            // Remove user from meeting participant maps and notify peers
+            for (const [groupId, participantsForRoom] of meetingParticipants.entries()) {
+                const hadParticipant = participantsForRoom.delete(socket.user.id.toString());
+                if (!hadParticipant) continue;
+
+                if (participantsForRoom.size === 0) {
+                    meetingParticipants.delete(groupId);
+                    groupTasks.delete(groupId);
+                } else {
+                    meetingParticipants.set(groupId, participantsForRoom);
+                }
+
+                socket.to(`meeting:${groupId}`).emit('meeting:peer-left', {
+                    groupId,
+                    peerId: socket.user.id,
+                });
             }
         });
     });
