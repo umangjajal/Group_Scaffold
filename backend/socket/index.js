@@ -6,6 +6,7 @@ const Quota = require('../models/QuotaUsage'); // For message quota
 const Plans = require('../models/Plan');
 const User = require('../models/User');
 const { createCorsOriginValidator } = require('../config/cors');
+const registerCollabSocket = require('./collab');
 
 // New models for calling features
 const CallQuota = require('../models/CallQuota');
@@ -32,6 +33,11 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
             credentials: true
         }
     });
+
+
+    if (String(process.env.SOCKET_REDIS_ENABLED || 'false') === 'true') {
+        console.log('ℹ️ SOCKET_REDIS_ENABLED=true. Install @socket.io/redis-adapter + redis and wire adapter for horizontal scaling.');
+    }
 
     // Socket.IO middleware for authentication
     io.use(async (socket, next) => {
@@ -158,6 +164,8 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
         });
 
         // --- Group Chat Events (from previous implementation) ---
+        registerCollabSocket(io, socket);
+
         socket.on('join', ({ groupId }) => {
             socket.join(`group:${groupId}`);
             console.log(`${socket.user.name} joined group:${groupId}`);

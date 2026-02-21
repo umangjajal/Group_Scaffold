@@ -1,38 +1,72 @@
-# Realtime Group App - Scaffold
-This scaffold includes:
-- Backend: Node.js + Express + Socket.IO signaling server (P2P call + multi-participant meeting signaling) with quota enforcement.
-- Frontend: Vite + React room dashboard with live video grid, chat, and realtime task board.
+# Realtime Group App - Advanced Collaboration Scaffold
 
-This is a collaboration-focused scaffold. Copy `.env.example` values into `backend/.env` and `frontend/.env` before running.
+This scaffold now includes:
+- **Realtime collaboration core** for documents, code, and spreadsheets.
+- **Git-inspired versioning** with snapshots, restore support, and audit logs.
+- **Socket.IO collaboration channels** for live patch sync, cursor presence, mentions, and spreadsheet cell updates.
+- **Secure code execution endpoint** using Docker sandboxing.
 
-Run backend:
+## Architecture additions
+
+### Backend
+- `backend/routes/collab.js`
+  - File CRUD by group
+  - Version history & restore
+  - Activity filtering
+  - Containerized code run endpoint (`/api/collab/code/run`)
+- New models:
+  - `CollabFile` (content + comments + permissions)
+  - `CollabVersion` (snapshots + branches + restore lineage)
+  - `ActivityLog` (audit events)
+  - `Notification` (mentions/file change alerts)
+- `backend/socket/collab.js`
+  - `collab:file:*` realtime file join/patch/cursor/comment flows
+  - Spreadsheet lock handling + live updates
+
+### Frontend
+- `frontend/src/pages/Collaboration.jsx`
+  - Multi-file workspace
+  - Document/code live editing surface
+  - Spreadsheet live cell editing
+  - Version history + restore actions
+  - Audit feed + inline comments
+
+## Socket event flow (new)
+- `collab:file:join` -> snapshot + presence
+- `collab:file:cursor` -> multi-user cursor broadcast
+- `collab:file:patch` -> synced updates + version checkpoint
+- `collab:file:comment` -> inline comments + mention notifications
+- `notification:new` -> user-level push notifications
+
+## Migration notes (basic -> advanced)
+1. Run app with latest schema changes (MongoDB auto-creates collections).
+2. Add env values from root `.env.example` into:
+   - `backend/.env`
+   - `frontend/.env`
+3. Optional scaling:
+   - Provide `REDIS_URL`
+   - Set `SOCKET_REDIS_ENABLED=true`
+   - Install redis adapter packages and wire adapter (currently scaffold warning).
+4. Optional secure code execution:
+   - Install Docker on backend host
+   - Configure `CODE_RUNNER_*` variables
+
+## Run locally
+
+### Backend
 ```bash
 cd backend
 npm install
-# set env vars in .env or .env.local
-node server.js
+npm run dev
 ```
 
-Run frontend:
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Files included:
-- backend/server.js
-- backend/socket/index.js
-- backend/models/CallQuota.js
-- backend/models/CallSession.js
-- backend/.env.example
-- frontend (Vite React) with CallPreview and InCall components
-
-Notes:
-- TURN/STUN and SFU templates provided in `infra/`.
-- The backend includes a **demo in-memory quota** so you can test without MongoDB. For production, set MONGO_URL in env and install mongoose.
-
-## New collaborative room call flow
-- Open a room from `Groups` and allow camera/microphone access.
-- The room now uses Socket.IO + WebRTC mesh signaling so every participant can see each other in a shared video grid.
-- For production-grade performance with larger rooms, migrate signaling to an SFU (notes available in `infra/sfu_notes.txt`).
+## Notes
+- Current real-time sync uses operation patches with snapshot versioning (interview-friendly baseline).
+- For production massive concurrency, evolve to formal CRDT/OT engine and Redis adapter wiring.

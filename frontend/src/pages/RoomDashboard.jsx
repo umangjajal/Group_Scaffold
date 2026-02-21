@@ -333,6 +333,7 @@ export default function RoomDashboard() {
           <div className="flex gap-2">
             <button className={`px-3 py-2 rounded ${cameraOn ? 'bg-emerald-600' : 'bg-slate-700'}`} onClick={() => setCameraOn((v) => !v)}>Camera</button>
             <button className={`px-3 py-2 rounded ${micOn ? 'bg-emerald-600' : 'bg-slate-700'}`} onClick={() => setMicOn((v) => !v)}>Mic</button>
+            <button className="px-3 py-2 rounded bg-indigo-600" onClick={() => navigate(`/groups/${roomId}/collab`)}>Collab</button>
             <button className="px-3 py-2 rounded bg-rose-600" onClick={() => navigate('/groups')}>Leave</button>
           </div>
         </div>
