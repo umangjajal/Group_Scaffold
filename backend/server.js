@@ -5,6 +5,7 @@ const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const attachSocket = require('./socket');
+const { createCorsOriginValidator, parseAllowedOrigins } = require('./config/cors');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -24,9 +25,12 @@ app.use(express.json({ limit: '5mb' }));
 
 // CORS config
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true
+  origin: createCorsOriginValidator(),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 }));
+
+app.options('*', cors({ origin: createCorsOriginValidator(), credentials: true }));
 
 // Basic security headers
 app.disable('x-powered-by');
@@ -109,6 +113,7 @@ const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`📝 API Docs: http://localhost:${PORT}/health`);
+  console.log(`🌐 Allowed CORS origins: ${parseAllowedOrigins().join(', ')}`);
 });
 
 // Crash safety

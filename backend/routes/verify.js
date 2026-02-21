@@ -1,104 +1,126 @@
-// backend/routes/verify.js
 const express = require("express");
 const router = express.Router();
-const nodemailer = require("nodemailer");
+const auth = require("../middleware/auth");
+const Otp = require("../models/Otp");
+const User = require("../models/User");
+const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
+const { toUserResponse } = require("../utils/userResponse");
 
-const otpStore = {}; // { "email:abc@gmail.com": { code, expiresAt } }
+const OTP_DELIVERY_TIMEOUT_MS = Number(process.env.OTP_DELIVERY_TIMEOUT_MS || 20000);
 
-// Generate random 6-digit OTP
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Nodemailer transporter (Mailtrap / Gmail)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+function withTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+    }),
+  ]);
+}
 
-// Verify transporter connection on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ SMTP Connection Failed:', error.message);
-  } else {
-    console.log('✅ SMTP Connection Verified - Ready to send emails');
-  }
-});
-
-// 🔹 Send OTP
-router.post("/send-otp", async (req, res) => {
+router.post("/send-otp", auth, async (req, res) => {
   try {
     const { channel, value } = req.body;
+
     if (!channel || !value) {
       return res.status(400).json({ error: "Channel and value are required" });
     }
 
-    const otp = generateOtp();
-    const key = `${channel}:${value}`;
-    otpStore[key] = { code: otp, expiresAt: Date.now() + 5 * 60 * 1000 };
-
-    // Only log OTP in development mode for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔐 OTP generated for ${channel}:${value} (Development mode only)`);
+    if (!["email", "phone"].includes(channel)) {
+      return res.status(400).json({ error: "Unsupported channel" });
     }
+
+    const normalizedValue = String(value).trim();
+
+    if (channel === "email" && req.user.email !== normalizedValue) {
+      return res.status(403).json({ error: "You can only verify your registered email." });
+    }
+
+    if (channel === "phone" && req.user.phone !== normalizedValue) {
+      return res.status(403).json({ error: "You can only verify your registered phone." });
+    }
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     if (channel === "email") {
-      try {
-        const result = await transporter.sendMail({
-          from: process.env.EMAIL_FROM || process.env.SMTP_USER,
-          to: value,
-          subject: "Your OTP Code",
-          text: `Your verification code is ${otp}. It expires in 5 minutes.`,
-        });
-        console.log(`✅ Email sent to ${value} (MessageID: ${result.messageId})`);
-        return res.json({ success: true, message: "OTP sent to your email" });
-      } catch (emailError) {
-        console.error(`❌ Email failed for ${value}:`, emailError.message);
-        return res.status(500).json({ error: "Failed to send email. Check SMTP configuration." });
-      }
+      await withTimeout(sendEmailOtp(normalizedValue, otp), OTP_DELIVERY_TIMEOUT_MS, "Email OTP delivery");
+    } else {
+      await withTimeout(sendSmsOtp(normalizedValue, otp), OTP_DELIVERY_TIMEOUT_MS, "SMS OTP delivery");
     }
 
-    if (channel === "phone") {
-      // Later integrate SMS (Twilio, etc.)
-      return res.json({
-        success: true,
-        message: "OTP sent to your phone (check backend console)",
-      });
-    }
+    await Otp.create({
+      channel,
+      value: normalizedValue,
+      code: otp,
+      expiresAt,
+      consumed: false,
+    });
 
-    res.status(400).json({ error: "Unsupported channel" });
-  } catch (err) {
-    console.error("❌ Error sending OTP:", err);
-    res.status(500).json({ error: "Failed to send OTP" });
+    const message = channel === "email" ? "OTP sent to your email" : "OTP sent to your phone";
+    return res.json({ success: true, message });
+  } catch (error) {
+    console.error("❌ Error sending OTP:", error.message);
+    const statusCode = error.message.includes("timeout") ? 504 : 500;
+    return res.status(statusCode).json({ error: `Failed to send OTP: ${error.message}` });
   }
 });
 
-// 🔹 Verify OTP
-router.post("/verify-otp", (req, res) => {
+router.post("/verify-otp", auth, async (req, res) => {
   const { channel, value, code } = req.body;
+
   if (!channel || !value || !code) {
-    return res
-      .status(400)
-      .json({ error: "Channel, value, and code are required" });
+    return res.status(400).json({ error: "Channel, value, and code are required" });
   }
 
-  const key = `${channel}:${value}`;
-  const record = otpStore[key];
+  try {
+    const normalizedValue = String(value).trim();
 
-  if (!record) return res.status(400).json({ error: "No OTP found for this value" });
-  if (Date.now() > record.expiresAt)
-    return res.status(400).json({ error: "OTP expired" });
-  if (record.code !== code)
-    return res.status(400).json({ error: "Invalid OTP" });
+    const otpRecord = await Otp.findOne({
+      channel,
+      value: normalizedValue,
+      code: String(code).trim(),
+      consumed: false,
+    }).sort({ createdAt: -1 });
 
-  // OTP valid → delete from store
-  delete otpStore[key];
-  res.json({ success: true, message: `${channel} verified successfully` });
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    if (new Date() > otpRecord.expiresAt) {
+      return res.status(400).json({ error: "OTP expired" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (channel === "email" && user.email === normalizedValue) {
+      user.emailVerified = true;
+    }
+
+    if (channel === "phone" && user.phone === normalizedValue) {
+      user.phoneVerified = true;
+    }
+
+    await user.save();
+
+    otpRecord.consumed = true;
+    await otpRecord.save();
+
+    return res.json({
+      success: true,
+      message: `${channel} verified successfully`,
+      user: toUserResponse(user),
+    });
+  } catch (error) {
+    console.error("❌ Error verifying OTP:", error.message);
+    return res.status(500).json({ error: "Failed to verify OTP" });
+  }
 });
 
 module.exports = router;
