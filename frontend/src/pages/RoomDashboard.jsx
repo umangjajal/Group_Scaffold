@@ -1,10 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
-import io from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const ICE_SERVERS = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
+function VideoTile({ label, stream, muted = false }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream || null;
+    }
+  }, [stream]);
+
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-black border border-gray-700 min-h-[180px]">
+      <video ref={videoRef} autoPlay playsInline muted={muted} className="w-full h-full object-cover" />
+      <div className="absolute left-2 bottom-2 px-2 py-1 rounded bg-black/70 text-xs">{label}</div>
+    </div>
+  );
+}
 
 export default function RoomDashboard() {
   const { roomId } = useParams();
@@ -48,6 +68,7 @@ export default function RoomDashboard() {
     return () => {
       leaveMeeting();
       if (socketRef.current) {
+        socketRef.current.emit('rtc:leave-room', { roomId });
         socketRef.current.emit('leave', { groupId: roomId });
         socketRef.current.disconnect();
       }

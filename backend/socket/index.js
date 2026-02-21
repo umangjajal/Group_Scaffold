@@ -80,6 +80,90 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
         // Emit presence status (e.g., 'online')
         io.emit('presence', { userId: socket.user.id, status: 'online' });
 
+        const joinedRtcRooms = new Set();
+
+        const leaveRtcRoom = (roomId) => {
+            const normalizedRoomId = String(roomId || '');
+            if (!normalizedRoomId) return;
+
+            const roomParticipants = rtcRooms.get(normalizedRoomId);
+            if (!roomParticipants) return;
+
+            roomParticipants.delete(socket.user.id.toString());
+            socket.leave(`rtc:${normalizedRoomId}`);
+            joinedRtcRooms.delete(normalizedRoomId);
+
+            socket.to(`rtc:${normalizedRoomId}`).emit('rtc:user-left', { roomId: normalizedRoomId, userId: socket.user.id.toString() });
+
+            if (roomParticipants.size === 0) {
+                rtcRooms.delete(normalizedRoomId);
+            }
+        };
+
+        // --- Room WebRTC (multi-user mesh for video collaboration) ---
+        socket.on('rtc:join-room', ({ roomId }) => {
+            const normalizedRoomId = String(roomId || '');
+            if (!normalizedRoomId) return;
+
+            if (!rtcRooms.has(normalizedRoomId)) {
+                rtcRooms.set(normalizedRoomId, new Map());
+            }
+
+            const roomParticipants = rtcRooms.get(normalizedRoomId);
+            const existingParticipants = Array.from(roomParticipants.values());
+
+            roomParticipants.set(socket.user.id.toString(), {
+                userId: socket.user.id.toString(),
+                name: socket.user.name,
+                socketId: socket.id,
+            });
+
+            joinedRtcRooms.add(normalizedRoomId);
+            socket.join(`rtc:${normalizedRoomId}`);
+
+            socket.emit('rtc:participants', {
+                roomId: normalizedRoomId,
+                participants: existingParticipants,
+            });
+
+            socket.to(`rtc:${normalizedRoomId}`).emit('rtc:user-joined', {
+                roomId: normalizedRoomId,
+                participant: {
+                    userId: socket.user.id.toString(),
+                    name: socket.user.name,
+                },
+            });
+        });
+
+        socket.on('rtc:leave-room', ({ roomId }) => {
+            leaveRtcRoom(roomId);
+        });
+
+        socket.on('rtc:offer', ({ to, sdp, roomId }) => {
+            io.to(`user:${to}`).emit('rtc:offer', {
+                from: socket.user.id.toString(),
+                fromName: socket.user.name,
+                roomId,
+                sdp,
+            });
+        });
+
+        socket.on('rtc:answer', ({ to, sdp, roomId }) => {
+            io.to(`user:${to}`).emit('rtc:answer', {
+                from: socket.user.id.toString(),
+                roomId,
+                sdp,
+            });
+        });
+
+        socket.on('rtc:candidate', ({ to, candidate, roomId }) => {
+            io.to(`user:${to}`).emit('rtc:candidate', {
+                from: socket.user.id.toString(),
+                roomId,
+                candidate,
+            });
+        });
+
         // --- Group Chat Events (from previous implementation) ---
         registerCollabSocket(io, socket);
         registerTerminalSocket(io, socket);
