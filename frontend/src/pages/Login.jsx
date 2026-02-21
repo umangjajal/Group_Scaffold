@@ -18,7 +18,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, { identifier, password });
+      const res = await axios.post(`${API_URL}/api/auth/login`, { identifier: identifier.trim(), password });
       saveAuth(res.data);
       navigate('/groups');
     } catch (err) {

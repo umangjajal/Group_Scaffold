@@ -37,7 +37,14 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/register`, { name, email, phone, password });
+      const payload = {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        password,
+      };
+
+      const res = await axios.post(`${API_URL}/api/auth/register`, payload);
       saveAuth(res.data);
       navigate('/verify');
     } catch (err) {

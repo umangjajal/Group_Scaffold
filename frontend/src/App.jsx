@@ -9,6 +9,7 @@ import Groups from './pages/Groups';
 import Chat from './pages/Chat';
 import Call from './pages/Call';
 import RoomDashboard from './pages/RoomDashboard';
+import Collaboration from './pages/Collaboration';
 import AdminPanel from './pages/AdminPanel';
 import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/groups" element={<PrivateRoute><Groups /></PrivateRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="/room/:roomId" element={<PrivateRoute><RoomDashboard /></PrivateRoute>} />
+        <Route path="/groups/:groupId/collab" element={<PrivateRoute><Collaboration /></PrivateRoute>} />
         <Route path="/groups/:groupId/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
         <Route path="/call/:sessionId" element={<PrivateRoute><Call /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" />} />

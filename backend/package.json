@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "nodemon server.js || node server.js",
     "check:merge-markers": "node scripts/check-merge-markers.js",
     "prestart": "npm run check:merge-markers && node --check routes/auth.js",
     "predev": "npm run check:merge-markers && node --check routes/auth.js"
