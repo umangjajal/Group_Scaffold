@@ -98,6 +98,9 @@ export default function Collaboration() {
   }, [selectedFileId]);
 
   const textValue = useMemo(() => String(selectedFile?.content?.text || ''), [selectedFile]);
+  const isSpreadsheet = selectedFile?.type === 'spreadsheet';
+  const isBinaryUpload = Boolean(selectedFile?.content?.binary);
+  const isTextEditable = !isSpreadsheet && !isBinaryUpload;
 
   async function initializeTerminal() {
     if (!terminalRef.current || xtermRef.current) return;
@@ -240,7 +243,7 @@ export default function Collaboration() {
   }
 
   function onTextChange(nextValue) {
-    if (!selectedFileId) return;
+    if (!selectedFileId || !isTextEditable) return;
     const delta = { from: 0, to: textValue.length, text: nextValue };
     socket.emit('collab:file:patch', { fileId: selectedFileId, delta, patchSummary: 'Live text sync' });
   }
@@ -295,7 +298,7 @@ export default function Collaboration() {
           <button onClick={saveVersion} disabled={!selectedFileId} className="px-3 py-1 bg-emerald-600 rounded text-sm disabled:opacity-50">Save version</button>
         </div>
 
-        {selectedFile?.type !== 'spreadsheet' && (
+        {isTextEditable && (
           <textarea
             value={textValue}
             onChange={(e) => onTextChange(e.target.value)}
@@ -309,7 +312,7 @@ export default function Collaboration() {
           />
         )}
 
-        {selectedFile?.type === 'spreadsheet' && (
+        {isSpreadsheet && (
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead><tr><th className="p-1" />{SPREADSHEET_COLUMNS.map((col) => <th key={col} className="p-1 text-left">{col}</th>)}</tr></thead>
@@ -330,6 +333,12 @@ export default function Collaboration() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!isSpreadsheet && isBinaryUpload && (
+          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+            This uploaded file is binary and cannot be edited inline. Upload code/text files (`.js`, `.jsx`, `.ts`, `.tsx`, `.py`, `.java`, etc.) to edit directly.
           </div>
         )}
 
