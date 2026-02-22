@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import AppNavbar from '../components/AppNavbar';
 import { AVATAR_PRESETS } from '../constants/avatarPresets';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function Profile() {
   const { user, saveAuth } = useAuth();
@@ -27,17 +25,12 @@ export default function Profile() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await axios.put(
-        `${API_URL}/api/auth/me`,
-        { name, avatarUrl, phone, gender },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
+      const res = await api.put('/auth/me', { name, avatarUrl, phone, gender });
 
       saveAuth({
         user: res.data.user,
-        accessToken: localStorage.getItem('accessToken'),
-        refreshToken: localStorage.getItem('refreshToken'),
+        accessToken: res.data.accessToken || localStorage.getItem('accessToken'),
+        refreshToken: res.data.refreshToken || localStorage.getItem('refreshToken'),
       });
       setMessage('Profile updated successfully ✨');
     } catch (err) {
