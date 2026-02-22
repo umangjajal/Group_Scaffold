@@ -14,8 +14,26 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const CODE_EXTENSIONS = new Set([
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+  '.py', '.java', '.c', '.cpp', '.cc', '.h', '.hpp',
+  '.cs', '.go', '.rs', '.php', '.rb', '.swift', '.kt', '.kts',
+  '.html', '.css', '.scss', '.sass', '.less',
+  '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.sql', '.sh', '.ps1',
+]);
+
+const TEXT_DOCUMENT_EXTENSIONS = new Set([
+  '.txt', '.md', '.markdown', '.env', '.log',
+]);
+
+const SPREADSHEET_EXTENSIONS = new Set(['.csv', '.xlsx', '.xls']);
+const BINARY_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx', '.pdf', '.zip']);
+
 const ALLOWED_EXTENSIONS = new Set([
-  '.txt', '.md', '.doc', '.docx', '.pdf', '.csv', '.xlsx', '.xls', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.zip'
+  ...CODE_EXTENSIONS,
+  ...TEXT_DOCUMENT_EXTENSIONS,
+  ...SPREADSHEET_EXTENSIONS,
+  ...BINARY_DOCUMENT_EXTENSIONS,
 ]);
 
 async function ensureMembership(groupId, userId) {
@@ -25,6 +43,26 @@ async function ensureMembership(groupId, userId) {
 
 function isValidId(value) {
   return Boolean(value) && mongoose.isValidObjectId(value);
+}
+
+function isTextMimeType(mimeType) {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith('text/')) return true;
+  return new Set([
+    'application/json',
+    'application/javascript',
+    'application/x-javascript',
+    'application/xml',
+    'application/x-sh',
+    'application/x-python-code',
+  ]).has(normalized);
+}
+
+function resolveUploadedType(ext) {
+  if (SPREADSHEET_EXTENSIONS.has(ext)) return 'spreadsheet';
+  if (CODE_EXTENSIONS.has(ext)) return 'code';
+  return 'document';
 }
 
 function asyncHandler(handler) {
@@ -250,10 +288,14 @@ router.post('/groups/:groupId/upload', upload.single('file'), asyncHandler(async
     return res.status(400).json({ error: `Unsupported file extension: ${ext || 'unknown'}` });
   }
 
-  const isTextLike = ['.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.csv'].includes(ext);
-  const type = ['.csv', '.xlsx', '.xls'].includes(ext) ? 'spreadsheet' : (['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.html', '.css', '.json'].includes(ext) ? 'code' : 'document');
+  const type = resolveUploadedType(ext);
+  const shouldStoreAsText =
+    type === 'code' ||
+    TEXT_DOCUMENT_EXTENSIONS.has(ext) ||
+    (type === 'document' && isTextMimeType(req.file.mimetype)) ||
+    ext === '.csv';
 
-  const content = isTextLike
+  const content = shouldStoreAsText
     ? { text: req.file.buffer.toString('utf8') }
     : { binary: true, originalName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size };
 
@@ -263,6 +305,7 @@ router.post('/groups/:groupId/upload', upload.single('file'), asyncHandler(async
     type,
     content,
     createdBy: req.user.id,
+    permissions: { approvalRequired: false },
   });
 
   await CollabVersion.create({
