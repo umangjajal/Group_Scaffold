@@ -46,7 +46,7 @@ export default function Signup() {
 
       const res = await axios.post(`${API_URL}/api/auth/register`, payload);
       saveAuth(res.data);
-      navigate('/verify');
+      navigate('/groups');
     } catch (err) {
       setError(err.response?.data?.error || 'Signup failed');
     } finally {

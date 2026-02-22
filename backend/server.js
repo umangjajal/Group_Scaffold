@@ -9,7 +9,6 @@ const { createCorsOriginValidator, parseAllowedOrigins } = require('./config/cor
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const verifyRoutes = require('./routes/verify');
 const groupsRoutes = require('./routes/groups');
 const collabRoutes = require('./routes/collab');
 const { router: adminRoutes, onlineUsers } = require('./routes/admin');
@@ -87,7 +86,6 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/verify', verifyRoutes); // ✅ OTP verification routes
 app.use('/api/groups', groupsRoutes);
 app.use('/api/collab', collabRoutes);
 app.use('/api/admin', adminRoutes);

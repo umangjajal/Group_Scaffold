@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Otp = require("../models/Otp");
-const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
+const { sendEmailOtp } = require("../services/notify");
 const auth = require("../middleware/auth");
 const { toUserResponse } = require("../utils/userResponse");
 
@@ -88,29 +88,9 @@ router.post("/register", async (req, res) => {
       nameVerified: looksRealName(name),
     });
     await newUser.save();
-
-    const code = generateOtpCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    if (email) {
-      await Otp.create({ channel: "email", value: email, code, expiresAt });
-      try {
-        await sendEmailOtp(email, code);
-      } catch (emailError) {
-        console.error("⚠️ OTP email failed but user registered:", emailError.message);
-      }
-    } else if (phone) {
-      await Otp.create({ channel: "phone", value: phone, code, expiresAt });
-      try {
-        await sendSmsOtp(phone, code);
-      } catch (smsError) {
-        console.error("⚠️ OTP SMS failed but user registered:", smsError.message);
-      }
-    }
-
     const { accessToken, refreshToken } = generateTokens(newUser);
     return res.status(201).json({
-      message: "User registered. Verify email/phone.",
+      message: "User registered successfully.",
       user: {
         ...toUserResponse(newUser),
         nameVerified: newUser.nameVerified,

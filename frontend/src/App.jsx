@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import Verify from './pages/Verify';
 import Profile from './pages/Profile';
 import Groups from './pages/Groups';
 import Chat from './pages/Chat';
@@ -33,7 +32,6 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify" element={<Verify />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/groups" element={<PrivateRoute><Groups /></PrivateRoute>} />
