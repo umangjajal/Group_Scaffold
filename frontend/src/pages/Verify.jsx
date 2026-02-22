@@ -34,7 +34,7 @@ export default function Verify() {
       const response = await axios.post(
         `${API_URL}/api/verify/send-otp`,
         { channel, value },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 20000 }
+        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 30000 }
       );
       setMessage(response.data.message || `OTP sent to your ${channel}`);
     } catch (err) {
@@ -42,7 +42,7 @@ export default function Verify() {
       if (err.response) {
         errorMsg = err.response.data?.error || errorMsg;
       } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'OTP service timed out. Please check EMAIL_USER and EMAIL_APP_PASSWORD configuration and try again.';
+        errorMsg = 'OTP request timed out on client. Server may be timing out while contacting email provider.';
       } else if (err.request) {
         errorMsg = 'Server not responding. Check API URL / backend deployment.';
       } else {
@@ -64,7 +64,7 @@ export default function Verify() {
       const response = await axios.post(
         `${API_URL}/api/verify/verify-otp`,
         { channel, value, code },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 20000 }
+        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 30000 }
       );
 
       if (response.data.user) {
@@ -82,7 +82,7 @@ export default function Verify() {
       if (err.response) {
         errorMsg = err.response.data?.error || errorMsg;
       } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'OTP service timed out. Please check EMAIL_USER and EMAIL_APP_PASSWORD configuration and try again.';
+        errorMsg = 'OTP verification timed out on client. Please retry.';
       } else if (err.request) {
         errorMsg = 'Server not responding. Check API URL / backend deployment.';
       } else {

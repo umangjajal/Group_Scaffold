@@ -6,7 +6,7 @@ const User = require("../models/User");
 const { sendEmailOtp, sendSmsOtp } = require("../services/notify");
 const { toUserResponse } = require("../utils/userResponse");
 
-const OTP_DELIVERY_TIMEOUT_MS = Number(process.env.OTP_DELIVERY_TIMEOUT_MS || 20000);
+const OTP_DELIVERY_TIMEOUT_MS = Number(process.env.OTP_DELIVERY_TIMEOUT_MS || 30000);
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
