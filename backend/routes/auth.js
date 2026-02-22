@@ -18,6 +18,17 @@ function looksRealName(name) {
   return true;
 }
 
+function normalizePhone(phone) {
+  const raw = String(phone || "").trim();
+  if (!raw) return "";
+  return raw.replace(/[\s().-]/g, "");
+}
+
+function isValidPhone(phone) {
+  if (!phone) return true;
+  return /^\+?[1-9]\d{7,14}$/.test(phone);
+}
+
 const generateTokens = (user) => {
   const payload = {
     id: user._id,
@@ -185,19 +196,59 @@ router.put("/me", auth, async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: "User not found." });
 
-    if (name) user.name = name;
+    if (typeof name === "string" && name.trim()) {
+      const nextName = name.trim();
+      if (!looksRealName(nextName)) {
+        return res.status(400).json({ error: "Invalid name." });
+      }
+      user.name = nextName;
+      user.nameVerified = looksRealName(nextName);
+    }
+
     if (typeof avatarUrl === "string") user.avatarUrl = avatarUrl;
-    if (phone) user.phone = phone;
+
+    if (typeof phone !== "undefined") {
+      const normalizedPhone = normalizePhone(phone);
+
+      if (!isValidPhone(normalizedPhone)) {
+        return res.status(400).json({
+          error: "Invalid phone number. Use 8-15 digits, optional leading +.",
+        });
+      }
+
+      if (normalizedPhone !== String(user.phone || "")) {
+        if (normalizedPhone) {
+          const existingUser = await User.findOne({
+            phone: normalizedPhone,
+            _id: { $ne: user._id },
+          });
+          if (existingUser) {
+            return res.status(409).json({ error: "Phone number is already in use." });
+          }
+          user.phone = normalizedPhone;
+        } else {
+          user.phone = undefined;
+        }
+        user.phoneVerified = false;
+      }
+    }
+
     if (["male", "female", "other"].includes(gender)) user.gender = gender;
 
     await user.save();
+    const { accessToken, refreshToken } = generateTokens(user);
 
     return res.json({
       message: "Profile updated.",
       user: toUserResponse(user),
+      accessToken,
+      refreshToken,
     });
   } catch (error) {
     console.error("Update /me error:", error);
+    if (error?.code === 11000 && error?.keyPattern?.phone) {
+      return res.status(409).json({ error: "Phone number is already in use." });
+    }
     return res.status(500).json({ error: "Server error." });
   }
 });

@@ -27,9 +27,15 @@ function isValidId(value) {
   return Boolean(value) && mongoose.isValidObjectId(value);
 }
 
+function asyncHandler(handler) {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
+
 router.use(auth, rateLimit({ windowMs: 60000, max: 240 }));
 
-router.get('/groups/:groupId/files', async (req, res) => {
+router.get('/groups/:groupId/files', asyncHandler(async (req, res) => {
   const { groupId } = req.params;
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
   const membership = await ensureMembership(groupId, req.user.id);
@@ -37,9 +43,9 @@ router.get('/groups/:groupId/files', async (req, res) => {
 
   const files = await CollabFile.find({ group: groupId }).sort({ updatedAt: -1 });
   return res.json(files);
-});
+}));
 
-router.post('/groups/:groupId/files', async (req, res) => {
+router.post('/groups/:groupId/files', asyncHandler(async (req, res) => {
   const { groupId } = req.params;
   const { name, type } = req.body;
 
@@ -79,9 +85,9 @@ router.post('/groups/:groupId/files', async (req, res) => {
   });
 
   return res.status(201).json(file);
-});
+}));
 
-router.get('/files/:fileId', async (req, res) => {
+router.get('/files/:fileId', asyncHandler(async (req, res) => {
   if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
@@ -90,9 +96,9 @@ router.get('/files/:fileId', async (req, res) => {
   if (!membership) return res.status(403).json({ error: 'Not a group member.' });
 
   return res.json(file);
-});
+}));
 
-router.get('/files/:fileId/history', async (req, res) => {
+router.get('/files/:fileId/history', asyncHandler(async (req, res) => {
   if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
@@ -105,9 +111,9 @@ router.get('/files/:fileId/history', async (req, res) => {
     .limit(100)
     .populate('author', 'name email');
   return res.json(versions);
-});
+}));
 
-router.post('/files/:fileId/versions', async (req, res) => {
+router.post('/files/:fileId/versions', asyncHandler(async (req, res) => {
   if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
@@ -138,9 +144,9 @@ router.post('/files/:fileId/versions', async (req, res) => {
   });
 
   return res.status(201).json(version);
-});
+}));
 
-router.post('/files/:fileId/restore/:version', async (req, res) => {
+router.post('/files/:fileId/restore/:version', asyncHandler(async (req, res) => {
   if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
   const file = await CollabFile.findById(req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
@@ -176,10 +182,10 @@ router.post('/files/:fileId/restore/:version', async (req, res) => {
   });
 
   return res.json({ file, restoreVersion });
-});
+}));
 
 
-router.post('/code/run', async (req, res) => {
+router.post('/code/run', asyncHandler(async (req, res) => {
   const { groupId, code = '', language = 'javascript' } = req.body;
   if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
@@ -227,10 +233,10 @@ router.post('/code/run', async (req, res) => {
 
     return res.status(/ENOENT/.test(error.message) ? 503 : 500).json({ error: message, stderr: error.stderr || '' });
   }
-});
+}));
 
 
-router.post('/groups/:groupId/upload', upload.single('file'), async (req, res) => {
+router.post('/groups/:groupId/upload', upload.single('file'), asyncHandler(async (req, res) => {
   const { groupId } = req.params;
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
 
@@ -278,9 +284,9 @@ router.post('/groups/:groupId/upload', upload.single('file'), async (req, res) =
   });
 
   return res.status(201).json(file);
-});
+}));
 
-router.post('/git/push', async (req, res) => {
+router.post('/git/push', asyncHandler(async (req, res) => {
   const { groupId, commitMessage = 'collab update', branch = 'main' } = req.body;
   if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
@@ -315,9 +321,9 @@ router.post('/git/push', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: `Git push failed: ${error.message}` });
   }
-});
+}));
 
-router.get('/activity', async (req, res) => {
+router.get('/activity', asyncHandler(async (req, res) => {
   const { groupId, userId, action } = req.query;
   if (!groupId) return res.status(400).json({ error: 'groupId is required.' });
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
@@ -336,6 +342,6 @@ router.get('/activity', async (req, res) => {
     .populate('file', 'name type');
 
   return res.json(logs);
-});
+}));
 
 module.exports = router;

@@ -23,6 +23,7 @@ const randomMatchQueue = {
 // In-memory room collaboration stores
 const meetingParticipants = new Map(); // groupId -> Map<userId, { socketId, name }>
 const groupTasks = new Map(); // groupId -> Task[]
+const rtcRooms = new Map(); // roomId -> Map<userId, { socketId, name }>
 
 // Helper to get current day key for quotas
 function dayKey() { return new Date().toISOString().slice(0, 10); }
@@ -454,7 +455,10 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
                 socket.emit('random:waiting', { sessionId: newCallSession._id, type });
 
                 // Attempt to match
-                attemptRandomMatch(type);
+                attemptRandomMatch(type).catch((error) => {
+                    console.error('Random match attempt failed:', error.message);
+                    socket.emit('error', { message: 'Random matching failed. Please retry.' });
+                });
             }
         });
 
@@ -565,7 +569,10 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
             console.log(`User ${socket.user.name} joined random ${type} queue.`);
             socket.emit('random:waiting', { type });
 
-            attemptRandomMatch(type);
+            attemptRandomMatch(type).catch((error) => {
+                console.error('Random match attempt failed:', error.message);
+                socket.emit('error', { message: 'Random matching failed. Please retry.' });
+            });
         });
 
         // Client -> Server: Leave random matching pool
@@ -652,6 +659,10 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
 
         socket.on('disconnect', () => {
             console.log(`User disconnected: ${socket.user.name} (${socket.user.id})`);
+
+            for (const roomId of joinedRtcRooms) {
+                leaveRtcRoom(roomId);
+            }
 
             // Remove user from online tracking
             onlineUsers.delete(socket.user.id.toString());
