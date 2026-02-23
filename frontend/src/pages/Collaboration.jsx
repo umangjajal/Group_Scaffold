@@ -7,7 +7,6 @@ const FILE_TYPES = ['document', 'code', 'spreadsheet'];
 const SPREADSHEET_COLUMNS = ['A', 'B', 'C', 'D'];
 const SPREADSHEET_ROWS = [1, 2, 3, 4, 5, 6];
 
-
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${src}"]`);
@@ -128,7 +127,7 @@ export default function Collaboration() {
       const term = new TerminalClass({
         cursorBlink: true,
         fontSize: 13,
-        theme: { background: '#0f172a' },
+        theme: { background: '#050b14' },
       });
       const fitAddon = new FitAddonClass();
       term.loadAddon(fitAddon);
@@ -250,7 +249,11 @@ export default function Collaboration() {
 
   function onSpreadsheetCellChange(cellId, value) {
     if (!selectedFileId) return;
-    socket.emit('collab:file:patch', { fileId: selectedFileId, delta: { cellId, value, lock: true }, patchSummary: `Cell ${cellId} updated` });
+    socket.emit('collab:file:patch', {
+      fileId: selectedFileId,
+      delta: { cellId, value, lock: true },
+      patchSummary: `Cell ${cellId} updated`,
+    });
   }
 
   function submitComment() {
@@ -266,121 +269,169 @@ export default function Collaboration() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 grid grid-cols-1 xl:grid-cols-12 gap-4">
-      <aside className="xl:col-span-3 bg-slate-900 rounded-lg p-3 space-y-3">
-        <h2 className="font-semibold">Collab Files</h2>
-        {error && <p className="text-xs text-rose-300">{error}</p>}
-        <form onSubmit={createFile} className="space-y-2">
-          <input className="w-full px-2 py-1 rounded bg-slate-800" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="New file name" />
-          <select className="w-full px-2 py-1 rounded bg-slate-800" value={fileType} onChange={(e) => setFileType(e.target.value)}>
-            {FILE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-          <button className="w-full bg-indigo-600 rounded py-1">Create file</button>
-        </form>
+    <div className="room-workspace-page">
+      <section className="workspace-grid">
+        <aside className="workspace-card">
+          <h2 className="workspace-card__title">Files</h2>
+          {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.7rem', marginBottom: 0 }}>{error}</div>}
 
-        <label className="block text-sm">Upload file
-          <input type="file" className="w-full mt-1 text-xs" onChange={uploadFile} />
-        </label>
+          <form onSubmit={createFile} className="workspace-form-grid" style={{ marginTop: '0.7rem' }}>
+            <input
+              className="input-control"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="New file name"
+            />
+            <select className="select-control" value={fileType} onChange={(e) => setFileType(e.target.value)}>
+              {FILE_TYPES.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <button className="btn btn--primary" type="submit">Create File</button>
+          </form>
 
-        <div className="space-y-1 max-h-64 overflow-y-auto">
-          {files.map((file) => (
-            <button key={file._id} onClick={() => selectFile(file._id)} className={`w-full text-left px-2 py-1 rounded ${selectedFileId === file._id ? 'bg-indigo-700' : 'bg-slate-800'}`}>
-              <div className="font-medium">{file.name}</div>
-              <div className="text-xs text-slate-300">{file.type} • v{file.latestVersion}</div>
+          <label className="auth-label" htmlFor="file-upload" style={{ marginTop: '0.8rem' }}>Upload File</label>
+          <input id="file-upload" type="file" className="input-control" onChange={uploadFile} />
+
+          <div className="workspace-list" style={{ marginTop: '0.8rem' }}>
+            {files.map((file) => (
+              <button
+                key={file._id}
+                onClick={() => selectFile(file._id)}
+                className={`workspace-list__item ${selectedFileId === file._id ? 'is-active' : ''}`}
+              >
+                <strong>{file.name}</strong>
+                <div>{file.type} | v{file.latestVersion}</div>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="workspace-card workspace-editor">
+          <header className="room-header" style={{ marginBottom: '0.7rem' }}>
+            <div>
+              <h2 className="room-header__title">{selectedFile?.name || 'Select a file'}</h2>
+              <p className="room-header__subtitle">Live editing with version checkpoints.</p>
+            </div>
+            <button onClick={saveVersion} disabled={!selectedFileId} className="btn btn--secondary">
+              Save Version
             </button>
-          ))}
-        </div>
-      </aside>
+          </header>
 
-      <main className="xl:col-span-6 bg-slate-900 rounded-lg p-3 space-y-3">
-        <div className="flex justify-between items-center gap-2">
-          <h2 className="font-semibold">{selectedFile?.name || 'Select a file'}</h2>
-          <button onClick={saveVersion} disabled={!selectedFileId} className="px-3 py-1 bg-emerald-600 rounded text-sm disabled:opacity-50">Save version</button>
-        </div>
+          {isTextEditable && (
+            <textarea
+              value={textValue}
+              onChange={(e) => onTextChange(e.target.value)}
+              onSelect={(e) => {
+                const pos = e.target.selectionStart || 0;
+                setCursor(pos);
+                socket.emit('collab:file:cursor', { fileId: selectedFileId, position: pos });
+              }}
+              className="workspace-text-editor"
+              placeholder="Start collaborating..."
+            />
+          )}
 
-        {isTextEditable && (
-          <textarea
-            value={textValue}
-            onChange={(e) => onTextChange(e.target.value)}
-            onSelect={(e) => {
-              const pos = e.target.selectionStart || 0;
-              setCursor(pos);
-              socket.emit('collab:file:cursor', { fileId: selectedFileId, position: pos });
-            }}
-            className="w-full min-h-[280px] bg-slate-800 rounded p-3 font-mono"
-            placeholder="Start collaborating..."
-          />
-        )}
-
-        {isSpreadsheet && (
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead><tr><th className="p-1" />{SPREADSHEET_COLUMNS.map((col) => <th key={col} className="p-1 text-left">{col}</th>)}</tr></thead>
-              <tbody>
-                {SPREADSHEET_ROWS.map((row) => (
-                  <tr key={row}>
-                    <td className="p-1 text-slate-300">{row}</td>
-                    {SPREADSHEET_COLUMNS.map((col) => {
-                      const id = `${col}${row}`;
-                      const cell = selectedFile?.content?.cells?.[id];
-                      return (
-                        <td key={id} className="p-1">
-                          <input value={cell?.value || ''} onChange={(e) => onSpreadsheetCellChange(id, e.target.value)} className="w-full px-2 py-1 bg-slate-800 rounded" />
-                        </td>
-                      );
-                    })}
+          {isSpreadsheet && (
+            <div style={{ overflow: 'auto' }}>
+              <table className="workspace-spreadsheet">
+                <thead>
+                  <tr>
+                    <th />
+                    {SPREADSHEET_COLUMNS.map((col) => (
+                      <th key={col}>{col}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!isSpreadsheet && isBinaryUpload && (
-          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-            This uploaded file is binary and cannot be edited inline. Upload code/text files (`.js`, `.jsx`, `.ts`, `.tsx`, `.py`, `.java`, etc.) to edit directly.
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Inline comments & mentions</h3>
-          <div className="flex gap-2">
-            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment... use @<userObjectId>" className="flex-1 px-2 py-1 rounded bg-slate-800" />
-            <button onClick={submitComment} className="px-3 py-1 bg-blue-600 rounded">Comment</button>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold mb-2">Integrated Terminal</h3>
-          <div ref={terminalRef} className="h-52 rounded border border-slate-700 overflow-hidden" />
-        </div>
-      </main>
-
-      <section className="xl:col-span-3 bg-slate-900 rounded-lg p-3 space-y-3">
-        <h2 className="font-semibold">Version History</h2>
-        <div className="max-h-48 overflow-auto space-y-1 text-sm">
-          {history.map((version) => (
-            <div key={version._id} className="bg-slate-800 rounded px-2 py-1 flex items-center justify-between">
-              <div>v{version.version} • {version.patchSummary}</div>
-              <button onClick={() => restoreVersion(version.version)} className="text-xs text-emerald-300">Restore</button>
+                </thead>
+                <tbody>
+                  {SPREADSHEET_ROWS.map((row) => (
+                    <tr key={row}>
+                      <td>{row}</td>
+                      {SPREADSHEET_COLUMNS.map((col) => {
+                        const id = `${col}${row}`;
+                        const cell = selectedFile?.content?.cells?.[id];
+                        return (
+                          <td key={id}>
+                            <input
+                              value={cell?.value || ''}
+                              onChange={(e) => onSpreadsheetCellChange(id, e.target.value)}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
+          )}
 
-        <h2 className="font-semibold">Push to Git</h2>
-        <input value={gitMessage} onChange={(e) => setGitMessage(e.target.value)} className="w-full px-2 py-1 rounded bg-slate-800 text-sm" placeholder="Commit message" />
-        <button onClick={pushToGit} className="w-full py-1 bg-fuchsia-600 rounded">Push main branch</button>
-
-        <h2 className="font-semibold">Audit Trail</h2>
-        <div className="max-h-48 overflow-auto space-y-1 text-xs">
-          {activity.map((log) => (
-            <div key={log._id} className="bg-slate-800 rounded px-2 py-1">
-              <div className="font-medium">{log.action}</div>
-              <div>{new Date(log.createdAt).toLocaleString()}</div>
+          {!isSpreadsheet && isBinaryUpload && (
+            <div className="dashboard-alert" style={{ borderColor: 'rgba(245, 158, 11, 0.42)', color: '#fcd34d', background: 'rgba(120, 53, 15, 0.3)' }}>
+              This file is binary and cannot be edited inline. Upload text or code files for editing.
             </div>
-          ))}
-        </div>
+          )}
+
+          <section className="workspace-card" style={{ marginTop: '0.7rem' }}>
+            <h3 className="workspace-card__title">Inline Comments</h3>
+            <div className="workspace-row" style={{ marginTop: '0.6rem' }}>
+              <input
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Comment... use @userObjectId"
+                className="input-control"
+              />
+              <button onClick={submitComment} className="btn btn--secondary">Comment</button>
+            </div>
+          </section>
+
+          <section className="workspace-card" style={{ marginTop: '0.7rem' }}>
+            <h3 className="workspace-card__title">Terminal</h3>
+            <div ref={terminalRef} className="workspace-terminal" />
+          </section>
+        </main>
       </section>
+
+      <aside className="workspace-sidebar">
+        <section className="workspace-card">
+          <h2 className="workspace-card__title">Version History</h2>
+          <div style={{ marginTop: '0.65rem' }}>
+            {history.map((version) => (
+              <article key={version._id} className="workspace-history-item">
+                <div className="workspace-history-row">
+                  <span>v{version.version} | {version.patchSummary}</span>
+                  <button onClick={() => restoreVersion(version.version)} className="btn btn--ghost">Restore</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="workspace-card">
+          <h2 className="workspace-card__title">Push to Git</h2>
+          <div className="workspace-form-grid" style={{ marginTop: '0.65rem' }}>
+            <input
+              value={gitMessage}
+              onChange={(e) => setGitMessage(e.target.value)}
+              className="input-control"
+              placeholder="Commit message"
+            />
+            <button onClick={pushToGit} className="btn btn--secondary">Push Main Branch</button>
+          </div>
+        </section>
+
+        <section className="workspace-card">
+          <h2 className="workspace-card__title">Audit Feed</h2>
+          <div style={{ marginTop: '0.65rem' }}>
+            {activity.map((log) => (
+              <article key={log._id} className="workspace-audit-item">
+                <strong>{log.action}</strong>
+                <p>{new Date(log.createdAt).toLocaleString()}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </aside>
     </div>
   );
 }

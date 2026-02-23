@@ -13,50 +13,51 @@ export default function AppNavbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-white/20 bg-slate-900/80 backdrop-blur">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-        <Link to="/" className="text-white text-xl font-bold">🎬 Realtime Group</Link>
+    <nav className="app-nav">
+      <div className="container-main app-nav__inner">
+        <Link to="/" className="app-nav__brand" onClick={() => setIsOpen(false)}>
+          <img src="/realtime-logo.svg" alt="Realtime Group" />
+          <span className="app-nav__title">Realtime Group</span>
+        </Link>
 
         <button
-          className="md:hidden text-white"
+          className="app-nav__menu-btn"
           onClick={() => setIsOpen((prev) => !prev)}
           aria-label="Toggle menu"
         >
-          ☰
+          {isOpen ? 'x' : '='}
         </button>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="app-nav__actions">
           {user ? (
             <>
-              <Link to="/groups" className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Dashboard</Link>
-              <Link to="/profile" className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700">Profile</Link>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700">Logout</button>
+              <Link to="/groups" className="btn btn--secondary">Dashboard</Link>
+              <Link to="/profile" className="btn btn--ghost">Profile</Link>
+              <button onClick={handleLogout} className="btn btn--danger">Logout</button>
             </>
           ) : (
             <>
-              <Link to="/login" className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Login</Link>
-              <Link to="/signup" className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700">Sign Up</Link>
+              <Link to="/login" className="btn btn--secondary">Sign In</Link>
+              <Link to="/signup" className="btn btn--primary">Create Account</Link>
             </>
           )}
-          <Link to="/admin-login" className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600">Admin</Link>
         </div>
       </div>
 
       {isOpen && (
-        <div className="md:hidden px-4 pb-4 flex flex-col gap-2 bg-slate-900/95">
+        <div className="container-main app-nav__mobile">
           {user ? (
             <>
-              <Link to="/groups" onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg bg-blue-600 text-white">Dashboard</Link>
-              <Link to="/profile" onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg bg-purple-600 text-white">Profile</Link>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-lg bg-rose-600 text-white text-left">Logout</button>
+              <Link to="/groups" onClick={() => setIsOpen(false)} className="btn btn--secondary">Dashboard</Link>
+              <Link to="/profile" onClick={() => setIsOpen(false)} className="btn btn--ghost">Profile</Link>
+              <button onClick={handleLogout} className="btn btn--danger">Logout</button>
             </>
           ) : (
             <>
-              <Link to="/login" onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg bg-blue-600 text-white">Login</Link>
-              <Link to="/signup" onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg bg-purple-600 text-white">Sign Up</Link>
+              <Link to="/login" onClick={() => setIsOpen(false)} className="btn btn--secondary">Sign In</Link>
+              <Link to="/signup" onClick={() => setIsOpen(false)} className="btn btn--primary">Create Account</Link>
             </>
           )}
-          <Link to="/admin-login" onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-white">Admin</Link>
         </div>
       )}
     </nav>

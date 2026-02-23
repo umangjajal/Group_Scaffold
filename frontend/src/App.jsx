@@ -10,7 +10,6 @@ import Call from './pages/Call';
 import RoomDashboard from './pages/RoomDashboard';
 import Collaboration from './pages/Collaboration';
 import AdminPanel from './pages/AdminPanel';
-import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -20,8 +19,10 @@ function PrivateRoute({ children }) {
 }
 
 function AdminRoute({ children }) {
-  const adminToken = localStorage.getItem('adminToken');
-  return adminToken ? children : <Navigate to="/admin-login" />;
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'admin') return <Navigate to="/groups" replace />;
+  return children;
 }
 
 export default function App() {
@@ -32,7 +33,6 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/groups" element={<PrivateRoute><Groups /></PrivateRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />

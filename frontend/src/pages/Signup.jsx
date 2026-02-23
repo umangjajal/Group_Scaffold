@@ -16,22 +16,22 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     if (!email && !phone) {
-      setError('Please provide email or phone');
+      setError('Please provide either an email or phone number.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Passwords do not match.');
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError('Password must be at least 6 characters.');
       return;
     }
 
@@ -55,176 +55,93 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-900 flex items-center justify-center p-4">
-      {/* Background Decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute bottom-20 left-10 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
-        <div className="absolute bottom-40 right-10 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
-      </div>
-
-      {/* Signup Container */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-4">🎬</div>
-          <h1 className="text-3xl font-bold text-white mb-2">Join Realtime Group</h1>
-          <p className="text-purple-100">Start connecting with others today</p>
+    <div className="auth-page">
+      <div className="auth-frame">
+        <div className="auth-brand">
+          <img src="/realtime-logo.svg" alt="Realtime Group logo" className="auth-brand__logo" />
+          <h1 className="auth-brand__title">Create your workspace account</h1>
+          <p className="auth-brand__subtitle">Provision access for chat, meetings, and code collaboration.</p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 animate-slideInUp">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Create Account ✨</h2>
+        <section className="auth-card glass-panel" aria-label="Sign up form">
+          <h2 className="auth-card__heading">Sign up</h2>
+          <p className="auth-card__subheading">Start with a standard account and scale with your team.</p>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg animate-slideIn">
-              <p className="text-red-700 font-medium text-sm">❌ {error}</p>
-            </div>
-          )}
+          {error && <div className="auth-error">{error}</div>}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name */}
+          <form onSubmit={handleSubmit} className="auth-form">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
+              <label className="auth-label" htmlFor="name">Full name</label>
               <input
+                id="name"
                 type="text"
-                placeholder="Enter your full name"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter full name"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                className="input-control"
               />
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email (Optional)
-              </label>
+              <label className="auth-label" htmlFor="email">Email (optional)</label>
               <input
+                id="email"
                 type="email"
-                placeholder="Enter your email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="input-control"
               />
             </div>
 
-            {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone (Optional)
-              </label>
+              <label className="auth-label" htmlFor="phone">Phone (optional)</label>
               <input
+                id="phone"
                 type="tel"
-                placeholder="Enter your phone number"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+123456789"
+                className="input-control"
               />
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
+              <label className="auth-label" htmlFor="password">Password</label>
               <input
+                id="password"
                 type="password"
-                placeholder="Create a strong password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create password"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                className="input-control"
               />
             </div>
 
-            {/* Confirm Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
+              <label className="auth-label" htmlFor="confirmPassword">Confirm password</label>
               <input
+                id="confirmPassword"
                 type="password"
-                placeholder="Confirm your password"
                 value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                className="input-control"
               />
             </div>
 
-            {/* Terms */}
-            <label className="flex items-start gap-2 text-gray-700 text-sm cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 rounded mt-1" required />
-              <span>
-                I agree to the <a href="#" className="text-purple-600 hover:text-purple-700 font-medium">Terms & Conditions</a> and <a href="#" className="text-purple-600 hover:text-purple-700 font-medium">Privacy Policy</a>
-              </span>
-            </label>
-
-            {/* Sign Up Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
-            >
-              {loading ? 'Creating Account...' : 'Sign Up'} 🚀
+            <button type="submit" disabled={loading} className="btn btn--primary auth-submit">
+              {loading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or sign up with</span>
-            </div>
-          </div>
-
-          {/* Social Signup */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <button
-              type="button"
-              className="py-2 px-4 border-2 border-gray-200 rounded-lg hover:border-purple-600 hover:bg-purple-50 transition-all flex items-center justify-center gap-2 font-medium text-gray-700"
-            >
-              Google 📧
-            </button>
-            <button
-              type="button"
-              className="py-2 px-4 border-2 border-gray-200 rounded-lg hover:border-purple-600 hover:bg-purple-50 transition-all flex items-center justify-center gap-2 font-medium text-gray-700"
-            >
-              GitHub 💻
-            </button>
-          </div>
-
-          {/* Login Link */}
-          <p className="text-center text-gray-700">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="text-purple-600 hover:text-purple-700 font-bold hover:underline transition"
-            >
-              Login here
-            </Link>
+          <p className="auth-card__footer">
+            Already have an account? <Link to="/login">Sign in</Link>
           </p>
-
-          {/* Back to Home */}
-          <div className="text-center mt-4">
-            <Link
-              to="/"
-              className="text-sm text-purple-200 hover:text-purple-100 transition"
-            >
-              ← Back to Home
-            </Link>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-purple-100 text-sm mt-6">
-          Secure, Fast & Easy. Join thousands of users.
-        </p>
+        </section>
       </div>
     </div>
   );

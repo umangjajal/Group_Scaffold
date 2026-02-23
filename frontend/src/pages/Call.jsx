@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,31 +14,28 @@ export default function Call() {
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const socketRef = useRef(null);
+
   const [callActive, setCallActive] = useState(false);
   const [error, setError] = useState('');
+  const [cameraOn, setCameraOn] = useState(true);
+  const [micOn, setMicOn] = useState(true);
 
-  // STUN servers configuration
   const iceServers = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      // Production apps should have a TURN server here for reliability
-    ],
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
   };
 
   useEffect(() => {
-    // --- Define call functions inside useEffect to capture correct state ---
-
     const endCall = () => {
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      if (localVideoRef.current?.srcObject) {
+        localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
         localVideoRef.current.srcObject = null;
       }
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-        remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      if (remoteVideoRef.current?.srcObject) {
+        remoteVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
         remoteVideoRef.current.srcObject = null;
       }
       setCallActive(false);
@@ -47,24 +44,25 @@ export default function Call() {
     const startPeerConnection = async (isCaller) => {
       peerConnectionRef.current = new RTCPeerConnection(iceServers);
 
-      // Get local media stream
       const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideoRef.current.srcObject = localStream;
-
-      // Add tracks to peer connection
-      localStream.getTracks().forEach(track => {
+      localStream.getTracks().forEach((track) => {
         peerConnectionRef.current.addTrack(track, localStream);
       });
+      localStream.getVideoTracks().forEach((track) => {
+        track.enabled = true;
+      });
+      localStream.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
 
-      // When remote stream arrives, display it
-      peerConnectionRef.current.ontrack = event => {
+      peerConnectionRef.current.ontrack = (event) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = event.streams[0];
         }
       };
 
-      // Send ICE candidates to the other peer
-      peerConnectionRef.current.onicecandidate = event => {
+      peerConnectionRef.current.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
           socketRef.current.emit('call:signal', { to: null, data: { candidate: event.candidate } });
         }
@@ -73,13 +71,14 @@ export default function Call() {
       if (isCaller) {
         const offer = await peerConnectionRef.current.createOffer();
         await peerConnectionRef.current.setLocalDescription(offer);
-        socketRef.current.emit('call:signal', { to: null, data: { sdp: peerConnectionRef.current.localDescription } });
+        socketRef.current.emit('call:signal', {
+          to: null,
+          data: { sdp: peerConnectionRef.current.localDescription },
+        });
       }
 
       setCallActive(true);
     };
-
-    // --- Main effect logic ---
 
     socketRef.current = io(WS_URL, {
       auth: { token: accessToken },
@@ -91,30 +90,33 @@ export default function Call() {
       if (!peerConnectionRef.current) {
         await startPeerConnection(false);
       }
+
       if (data.sdp) {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
         if (data.sdp.type === 'offer') {
           const answer = await peerConnectionRef.current.createAnswer();
           await peerConnectionRef.current.setLocalDescription(answer);
-          socketRef.current.emit('call:signal', { to: from, data: { sdp: peerConnectionRef.current.localDescription } });
+          socketRef.current.emit('call:signal', {
+            to: from,
+            data: { sdp: peerConnectionRef.current.localDescription },
+          });
         }
       } else if (data.candidate) {
         try {
           await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (e) {
-          console.error('Error adding received ICE candidate', e);
+        } catch (candidateError) {
+          console.error('Error adding ICE candidate', candidateError);
         }
       }
     });
 
     socketRef.current.on('call:end', () => {
       endCall();
-      alert('Call ended by the other user.');
       navigate('/groups');
     });
 
-    startPeerConnection(true).catch(err => {
-      setError('Failed to start call: ' + err.message);
+    startPeerConnection(true).catch((err) => {
+      setError(`Failed to start call: ${err.message}`);
       console.error(err);
     });
 
@@ -124,56 +126,79 @@ export default function Call() {
         socketRef.current.disconnect();
       }
     };
-  }, [sessionId, accessToken, navigate]); // Added navigate to dependency array
+  }, [sessionId, accessToken, navigate]);
+
+  useEffect(() => {
+    const stream = localVideoRef.current?.srcObject;
+    if (!stream) return;
+
+    stream.getVideoTracks().forEach((track) => {
+      track.enabled = cameraOn;
+    });
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = micOn;
+    });
+  }, [cameraOn, micOn]);
 
   const handleEndCallClick = () => {
     if (socketRef.current) {
       socketRef.current.emit('call:end', { sessionId });
     }
-    // `endCall` is not directly accessible here, but the effect cleanup will handle it.
-    // We can just navigate away.
     if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-        peerConnectionRef.current = null;
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
-    if (localVideoRef.current && localVideoRef.current.srcObject) {
-        localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    if (localVideoRef.current?.srcObject) {
+      localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
     }
     navigate('/groups');
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
-      <h2>Call Session: {sessionId}</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
-        <div>
-          <h3>Your Video</h3>
-          <video ref={localVideoRef} autoPlay muted playsInline style={{ width: 320, height: 240, backgroundColor: '#000' }} />
+    <div className="call-page">
+      <div className="call-layout">
+        <header className="call-header">
+          <div>
+            <h1 className="call-title">Call Session {sessionId}</h1>
+            <p className="call-subtitle">Secure realtime call session for your room.</p>
+          </div>
+        </header>
+
+        {error && <div className="call-error">{error}</div>}
+
+        <section className="call-stage">
+          <article className="call-video">
+            <video ref={localVideoRef} autoPlay muted playsInline />
+            <div className="call-video__label">Your stream</div>
+          </article>
+          <article className="call-video">
+            <video ref={remoteVideoRef} autoPlay playsInline />
+            <div className="call-video__label">Remote stream</div>
+          </article>
+        </section>
+
+        <div className="call-control-bar" role="toolbar" aria-label="Call controls">
+          <button
+            className={`call-control-btn ${cameraOn ? 'is-on' : 'is-off'}`}
+            onClick={() => setCameraOn((v) => !v)}
+            aria-pressed={cameraOn}
+          >
+            {cameraOn ? 'Camera On' : 'Camera Off'}
+          </button>
+          <button
+            className={`call-control-btn ${micOn ? 'is-on' : 'is-off'}`}
+            onClick={() => setMicOn((v) => !v)}
+            aria-pressed={micOn}
+          >
+            {micOn ? 'Mic On' : 'Mic Off'}
+          </button>
+          <button className="call-control-btn is-danger" onClick={handleEndCallClick}>
+            Leave Call
+          </button>
         </div>
-        <div>
-          <h3>Remote Video</h3>
-          <video ref={remoteVideoRef} autoPlay playsInline style={{ width: 320, height: 240, backgroundColor: '#000' }} />
-        </div>
+
+        <p className="call-status">{callActive ? 'Connected' : 'Connecting...'}</p>
       </div>
-      {callActive ? (
-        <button
-          onClick={handleEndCallClick}
-          style={{
-            padding: '10px 20px',
-            fontSize: '16px',
-            backgroundColor: '#e53e3e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          End Call
-        </button>
-      ) : (
-        <p>Connecting...</p>
-      )}
     </div>
   );
 }

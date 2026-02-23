@@ -51,59 +51,72 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-700 to-purple-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password</h1>
-        <p className="text-sm text-gray-600 mb-6">Reset your password using OTP sent to your registered email.</p>
+    <div className="auth-page">
+      <div className="auth-frame">
+        <div className="auth-brand">
+          <img src="/realtime-logo.svg" alt="Realtime Group logo" className="auth-brand__logo" />
+          <h1 className="auth-brand__title">Reset password</h1>
+          <p className="auth-brand__subtitle">Recover account access with a one-time code.</p>
+        </div>
 
-        {message && <div className="mb-4 p-3 rounded bg-green-50 border border-green-200 text-green-700">{message}</div>}
-        {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
+        <section className="auth-card glass-panel" aria-label="Forgot password form">
+          <h2 className="auth-card__heading">Forgot Password</h2>
+          <p className="auth-card__subheading">We will send an OTP to your registered email address.</p>
 
-        {step === 1 ? (
-          <form onSubmit={sendOtp} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Registered Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <button disabled={loading} className="w-full py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? 'Sending OTP...' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={resetPassword} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">OTP Code</label>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                maxLength={6}
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <button disabled={loading} className="w-full py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50">
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
-          </form>
-        )}
+          {message && <div className="dashboard-alert dashboard-alert--success" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{message}</div>}
+          {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{error}</div>}
 
-        <p className="mt-6 text-sm text-center text-gray-600">Remembered password? <Link to="/login" className="text-indigo-600 font-semibold">Back to Login</Link></p>
+          {step === 1 ? (
+            <form onSubmit={sendOtp} className="auth-form">
+              <div>
+                <label className="auth-label" htmlFor="email">Registered Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="input-control"
+                />
+              </div>
+              <button disabled={loading} className="btn btn--primary auth-submit">
+                {loading ? 'Sending OTP...' : 'Send OTP'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={resetPassword} className="auth-form">
+              <div>
+                <label className="auth-label" htmlFor="otp">OTP Code</label>
+                <input
+                  id="otp"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  maxLength={6}
+                  className="input-control code-font"
+                />
+              </div>
+              <div>
+                <label className="auth-label" htmlFor="newPassword">New Password</label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="input-control"
+                />
+              </div>
+              <button disabled={loading} className="btn btn--primary auth-submit">
+                {loading ? 'Resetting...' : 'Reset Password'}
+              </button>
+            </form>
+          )}
+
+          <p className="auth-card__footer">
+            Remembered your password? <Link to="/login">Back to Login</Link>
+          </p>
+        </section>
       </div>
     </div>
   );

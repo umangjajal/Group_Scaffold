@@ -35,90 +35,54 @@ export default function RoomCreationModal({ isOpen, onClose, onCreateRoom }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 p-8 animate-slideIn">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Create New Room</h2>
+    <div className="modal-overlay">
+      <div className="modal-card glass-panel">
+        <h2>Create Room</h2>
+        <p className="modal-subtitle">Define a new collaboration room for your team.</p>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
+        {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{error}</div>}
 
-        <div className="space-y-5">
-          {/* Room Name Input */}
+        <div className="workspace-form-grid" style={{ marginTop: '0.85rem' }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Room Name
-            </label>
+            <label className="auth-label" htmlFor="new-room-name">Room Name</label>
             <input
+              id="new-room-name"
               type="text"
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
-              placeholder="e.g., Web Dev Team"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              placeholder="e.g. Mobile Platform Squad"
+              className="input-control"
             />
           </div>
 
-          {/* Room Description Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
+            <label className="auth-label" htmlFor="new-room-description">Description</label>
             <textarea
+              id="new-room-description"
               value={roomDescription}
               onChange={(e) => setRoomDescription(e.target.value)}
-              placeholder="Add a description for this room..."
+              placeholder="Add context for this room"
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+              className="textarea-control"
             />
           </div>
 
-          {/* Privacy Toggle */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-start">
-              <div className="flex items-center h-6">
-                <input
-                  type="checkbox"
-                  id="private"
-                  checked={isPrivate}
-                  onChange={(e) => setIsPrivate(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                />
-              </div>
-              <div className="ml-3">
-                <label htmlFor="private" className="text-sm font-medium text-gray-900 cursor-pointer">
-                  {isPrivate ? '🔒 Private Room' : '🌍 Public Room'}
-                </label>
-                <p className="text-xs text-gray-600 mt-1">
-                  {isPrivate
-                    ? 'Only invited members can join'
-                    : 'Anyone can discover and join'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Room Type Summary */}
-          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-            Creating a <strong>{isPrivate ? 'private' : 'public'}</strong> room
-          </div>
+          <label className="pill" style={{ width: 'fit-content', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={isPrivate}
+              onChange={(e) => setIsPrivate(e.target.checked)}
+              style={{ marginRight: '0.45rem' }}
+            />
+            {isPrivate ? 'Private Room' : 'Public Room'}
+          </label>
         </div>
 
-        {/* Buttons */}
-        <div className="flex gap-3 mt-8">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium disabled:opacity-50"
-          >
+        <div className="modal-actions">
+          <button onClick={onClose} disabled={loading} className="btn btn--ghost">
             Cancel
           </button>
-          <button
-            onClick={handleCreate}
-            disabled={loading}
-            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button onClick={handleCreate} disabled={loading} className="btn btn--primary">
             {loading ? 'Creating...' : 'Create Room'}
           </button>
         </div>

@@ -5,26 +5,6 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-const ICE_SERVERS = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
-
-function VideoTile({ label, stream, muted = false }) {
-  const videoRef = useRef(null);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream || null;
-    }
-  }, [stream]);
-
-  return (
-    <div className="relative rounded-xl overflow-hidden bg-black border border-gray-700 min-h-[180px]">
-      <video ref={videoRef} autoPlay playsInline muted={muted} className="w-full h-full object-cover" />
-      <div className="absolute left-2 bottom-2 px-2 py-1 rounded bg-black/70 text-xs">{label}</div>
-    </div>
-  );
-}
 
 export default function RoomDashboard() {
   const { roomId } = useParams();
@@ -55,12 +35,14 @@ export default function RoomDashboard() {
 
   const token = localStorage.getItem('accessToken');
 
-  const axiosAuth = useMemo(() => (
-    axios.create({
-      baseURL: API_URL,
-      headers: { Authorization: `Bearer ${token}` },
-    })
-  ), [token]);
+  const axiosAuth = useMemo(
+    () =>
+      axios.create({
+        baseURL: API_URL,
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    [token]
+  );
 
   useEffect(() => {
     bootstrapRoom();
@@ -147,12 +129,15 @@ export default function RoomDashboard() {
     });
 
     socket.on('message:new', (message) => {
-      setMessages((prev) => [...prev, {
-        id: message._id,
-        text: message.text,
-        sender: message.sender?.name || 'Unknown',
-        timestamp: new Date(message.createdAt),
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: message._id,
+          text: message.text,
+          sender: message.sender?.name || 'Unknown',
+          timestamp: new Date(message.createdAt),
+        },
+      ]);
     });
 
     socket.on('meeting:participants', ({ participants: existingPeers }) => {
@@ -318,83 +303,132 @@ export default function RoomDashboard() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-white bg-slate-900">Loading room...</div>;
+    return <div className="call-page" style={{ display: 'grid', placeItems: 'center' }}>Loading room...</div>;
   }
 
   if (!isMember) {
-    return <div className="min-h-screen flex items-center justify-center text-white bg-slate-900">Access denied.</div>;
+    return <div className="call-page" style={{ display: 'grid', placeItems: 'center' }}>Access denied.</div>;
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 grid grid-cols-1 xl:grid-cols-4 gap-4">
-      <section className="xl:col-span-3 space-y-4">
-        <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Meeting Room: {roomId}</h1>
-          <div className="flex gap-2">
-            <button className={`px-3 py-2 rounded ${cameraOn ? 'bg-emerald-600' : 'bg-slate-700'}`} onClick={() => setCameraOn((v) => !v)}>Camera</button>
-            <button className={`px-3 py-2 rounded ${micOn ? 'bg-emerald-600' : 'bg-slate-700'}`} onClick={() => setMicOn((v) => !v)}>Mic</button>
-            <button className="px-3 py-2 rounded bg-indigo-600" onClick={() => navigate(`/groups/${roomId}/collab`)}>Collab</button>
-            <button className="px-3 py-2 rounded bg-rose-600" onClick={() => navigate('/groups')}>Leave</button>
+    <div className="room-workspace-page">
+      <section className="room-workspace-main">
+        <header className="room-header">
+          <div>
+            <h1 className="room-header__title">Room {roomId}</h1>
+            <p className="room-header__subtitle">Realtime meeting, chat, tasks, and collaboration context.</p>
           </div>
-        </div>
 
-        {mediaError && <div className="bg-rose-900/60 border border-rose-600 rounded p-2 text-sm">{mediaError}</div>}
+          <div className="call-control-bar" role="toolbar" aria-label="Meeting controls">
+            <button
+              className={`call-control-btn ${cameraOn ? 'is-on' : 'is-off'}`}
+              onClick={() => setCameraOn((v) => !v)}
+              aria-pressed={cameraOn}
+            >
+              {cameraOn ? 'Camera On' : 'Camera Off'}
+            </button>
+            <button
+              className={`call-control-btn ${micOn ? 'is-on' : 'is-off'}`}
+              onClick={() => setMicOn((v) => !v)}
+              aria-pressed={micOn}
+            >
+              {micOn ? 'Mic On' : 'Mic Off'}
+            </button>
+            <button className="call-control-btn is-neutral" onClick={() => navigate(`/groups/${roomId}/collab`)}>
+              Open Workspace
+            </button>
+            <button className="call-control-btn is-danger" onClick={() => navigate('/groups')}>
+              Leave Room
+            </button>
+          </div>
+        </header>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {mediaError && <div className="call-error">{mediaError}</div>}
+
+        <div className="workspace-video-grid">
           <VideoCard title="You" muted videoRef={localVideoRef} />
           {remoteStreams.map((peer) => (
             <VideoCard key={peer.peerId} title={peer.name || peer.peerId} stream={peer.stream} />
           ))}
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-4">
-          <h2 className="font-semibold mb-2">Participants ({participants.length + 1})</h2>
-          <div className="flex flex-wrap gap-2 text-sm">
-            <span className="px-2 py-1 rounded bg-slate-700">{user?.name || 'You'} (You)</span>
+        <section className="workspace-card">
+          <h2 className="workspace-card__title">Participants ({participants.length + 1})</h2>
+          <div className="workspace-card__body" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+            <span className="pill pill--active">{user?.name || 'You'} (You)</span>
             {participants.map((peer) => (
-              <span key={peer.id} className="px-2 py-1 rounded bg-slate-700">{peer.name}</span>
+              <span key={peer.id} className="pill">{peer.name}</span>
             ))}
           </div>
-        </div>
+        </section>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="workspace-sidebar">
         <Panel title="Live Chat">
-          <div className="space-y-2 max-h-56 overflow-y-auto mb-3">
+          <div className="workspace-list" style={{ marginBottom: '0.6rem' }}>
             {messages.map((message) => (
-              <div key={message.id} className="bg-slate-700 rounded p-2 text-sm">
-                <p className="font-medium">{message.sender}</p>
-                <p>{message.text}</p>
-              </div>
+              <article key={message.id} className="workspace-list__item">
+                <strong>{message.sender}</strong>
+                <div>{message.text}</div>
+              </article>
             ))}
           </div>
-          <div className="flex gap-2">
-            <input className="flex-1 bg-slate-700 rounded px-2 py-1 text-sm" value={messageInput} onChange={(e) => setMessageInput(e.target.value)} placeholder="Type message" />
-            <button className="bg-blue-600 px-3 rounded" onClick={sendMessage}>Send</button>
+          <div className="workspace-row">
+            <input
+              className="input-control"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              placeholder="Type message"
+            />
+            <button className="btn btn--secondary" onClick={sendMessage}>Send</button>
           </div>
         </Panel>
 
         <Panel title="Task Board">
-          <div className="flex gap-2 mb-2">
-            <input className="flex-1 bg-slate-700 rounded px-2 py-1 text-sm" value={taskInput} onChange={(e) => setTaskInput(e.target.value)} placeholder="New task" />
-            <button className="bg-emerald-600 px-3 rounded" onClick={createTask}>Add</button>
+          <div className="workspace-row" style={{ marginBottom: '0.6rem' }}>
+            <input
+              className="input-control"
+              value={taskInput}
+              onChange={(e) => setTaskInput(e.target.value)}
+              placeholder="New task"
+            />
+            <button className="btn btn--primary" onClick={createTask}>Add</button>
           </div>
-          <div className="space-y-2 max-h-56 overflow-y-auto">
+          <div className="workspace-list">
             {tasks.map((task) => (
-              <div key={task.id} className="bg-slate-700 rounded p-2 flex items-center justify-between gap-2 text-sm">
-                <button className={`text-left flex-1 ${task.completed ? 'line-through text-slate-400' : ''}`} onClick={() => socketRef.current?.emit('task:toggle', { groupId: roomId, taskId: task.id, completed: !task.completed })}>{task.title}</button>
-                <span className="text-xs text-slate-400">v{task.version || 1}</span>
-                <button className="text-rose-300" onClick={() => socketRef.current?.emit('task:delete', { groupId: roomId, taskId: task.id })}>✕</button>
-              </div>
+              <article key={task.id} className="workspace-list__item" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.4rem', alignItems: 'center' }}>
+                <button
+                  className="btn btn--ghost"
+                  style={{ justifyContent: 'flex-start', paddingInline: '0.45rem' }}
+                  onClick={() =>
+                    socketRef.current?.emit('task:toggle', {
+                      groupId: roomId,
+                      taskId: task.id,
+                      completed: !task.completed,
+                    })
+                  }
+                >
+                  <span style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>{task.title}</span>
+                </button>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>v{task.version || 1}</span>
+                <button
+                  className="btn btn--danger"
+                  style={{ minWidth: '2.2rem', paddingInline: '0.45rem' }}
+                  onClick={() => socketRef.current?.emit('task:delete', { groupId: roomId, taskId: task.id })}
+                >
+                  x
+                </button>
+              </article>
             ))}
           </div>
         </Panel>
 
         <Panel title={`Members (${members.length})`}>
-          <div className="space-y-1 text-sm">
+          <div className="workspace-list">
             {members.map((member) => (
-              <div key={member._id} className="bg-slate-700 rounded px-2 py-1">
-                {member.user?.name} • {member.role}
+              <div key={member._id} className="workspace-list__item">
+                <strong>{member.user?.name}</strong>
+                <div style={{ color: '#94a3b8' }}>{member.role}</div>
               </div>
             ))}
           </div>
@@ -406,10 +440,10 @@ export default function RoomDashboard() {
 
 function Panel({ title, children }) {
   return (
-    <div className="bg-slate-800 rounded-xl p-3">
-      <h3 className="font-semibold mb-2">{title}</h3>
-      {children}
-    </div>
+    <section className="workspace-card">
+      <h3 className="workspace-card__title">{title}</h3>
+      <div className="workspace-card__body">{children}</div>
+    </section>
   );
 }
 
@@ -424,9 +458,9 @@ function VideoCard({ title, stream, muted = false, videoRef }) {
   }, [stream, ref]);
 
   return (
-    <div className="bg-slate-800 rounded-xl overflow-hidden">
-      <video ref={ref} autoPlay playsInline muted={muted} className="w-full aspect-video bg-black object-cover" />
-      <div className="px-3 py-2 text-sm">{title}</div>
-    </div>
+    <article className="video-tile">
+      <video ref={ref} autoPlay playsInline muted={muted} className="video-tile__media" />
+      <div className="video-tile__label">{title}</div>
+    </article>
   );
 }
