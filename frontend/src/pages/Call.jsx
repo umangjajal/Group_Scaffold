@@ -14,6 +14,7 @@ export default function Call() {
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const socketRef = useRef(null);
+  const pendingCandidatesRef = useRef([]); // RTC candidates waiting for remote SDP
 
   const [callActive, setCallActive] = useState(false);
   const [error, setError] = useState('');
@@ -30,6 +31,7 @@ export default function Call() {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
+      pendingCandidatesRef.current = [];
       if (localVideoRef.current?.srcObject) {
         localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
         localVideoRef.current.srcObject = null;
@@ -41,19 +43,13 @@ export default function Call() {
       setCallActive(false);
     };
 
-    const startPeerConnection = async (isCaller) => {
+    const startPeerConnection = async (isCaller, remoteUserId) => {
       peerConnectionRef.current = new RTCPeerConnection(iceServers);
 
       const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideoRef.current.srcObject = localStream;
       localStream.getTracks().forEach((track) => {
         peerConnectionRef.current.addTrack(track, localStream);
-      });
-      localStream.getVideoTracks().forEach((track) => {
-        track.enabled = true;
-      });
-      localStream.getAudioTracks().forEach((track) => {
-        track.enabled = true;
       });
 
       peerConnectionRef.current.ontrack = (event) => {
@@ -64,16 +60,21 @@ export default function Call() {
 
       peerConnectionRef.current.onicecandidate = (event) => {
         if (event.candidate && socketRef.current) {
-          socketRef.current.emit('call:signal', { to: null, data: { candidate: event.candidate } });
+          socketRef.current.emit('call:candidate', {
+            to: remoteUserId,
+            candidate: event.candidate,
+            sessionId,
+          });
         }
       };
 
       if (isCaller) {
         const offer = await peerConnectionRef.current.createOffer();
         await peerConnectionRef.current.setLocalDescription(offer);
-        socketRef.current.emit('call:signal', {
-          to: null,
-          data: { sdp: peerConnectionRef.current.localDescription },
+        socketRef.current.emit('call:offer', {
+          to: remoteUserId,
+          sdp: peerConnectionRef.current.localDescription,
+          sessionId,
         });
       }
 
@@ -84,40 +85,66 @@ export default function Call() {
       auth: { token: accessToken },
     });
 
-    socketRef.current.emit('call:join', { sessionId });
+    socketRef.current.on('call:ring', async ({ fromUser }) => {
+        // Automatically start the connection (for testing/simple use)
+        // In a real app, you would wait for the user to click "Accept"
+    });
 
-    socketRef.current.on('call:signal', async ({ from, data }) => {
+    socketRef.current.on('call:active', async ({ participants }) => {
+        const otherParticipant = participants.find(id => id !== user?.id);
+        if (!peerConnectionRef.current) {
+            await startPeerConnection(true, otherParticipant);
+        }
+    });
+
+    socketRef.current.on('call:offer', async ({ from, sdp }) => {
       if (!peerConnectionRef.current) {
-        await startPeerConnection(false);
+        await startPeerConnection(false, from);
       }
 
-      if (data.sdp) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        if (data.sdp.type === 'offer') {
-          const answer = await peerConnectionRef.current.createAnswer();
-          await peerConnectionRef.current.setLocalDescription(answer);
-          socketRef.current.emit('call:signal', {
-            to: from,
-            data: { sdp: peerConnectionRef.current.localDescription },
-          });
+      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
+      
+      // Drain candidates
+      for (const candidate of pendingCandidatesRef.current) {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+      pendingCandidatesRef.current = [];
+
+      const answer = await peerConnectionRef.current.createAnswer();
+      await peerConnectionRef.current.setLocalDescription(answer);
+      socketRef.current.emit('call:answer', {
+        to: from,
+        sdp: peerConnectionRef.current.localDescription,
+        sessionId,
+      });
+    });
+
+    socketRef.current.on('call:answer', async ({ from, sdp }) => {
+      if (peerConnectionRef.current) {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
+        // Drain candidates
+        for (const candidate of pendingCandidatesRef.current) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
         }
-      } else if (data.candidate) {
-        try {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (candidateError) {
-          console.error('Error adding ICE candidate', candidateError);
-        }
+        pendingCandidatesRef.current = [];
       }
     });
 
-    socketRef.current.on('call:end', () => {
+    socketRef.current.on('call:candidate', async ({ candidate }) => {
+      if (peerConnectionRef.current && peerConnectionRef.current.remoteDescription) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.error('Error adding candidate', e);
+        }
+      } else {
+        pendingCandidatesRef.current.push(candidate);
+      }
+    });
+
+    socketRef.current.on('call:ended', () => {
       endCall();
       navigate('/groups');
-    });
-
-    startPeerConnection(true).catch((err) => {
-      setError(`Failed to start call: ${err.message}`);
-      console.error(err);
     });
 
     return () => {
@@ -126,7 +153,7 @@ export default function Call() {
         socketRef.current.disconnect();
       }
     };
-  }, [sessionId, accessToken, navigate]);
+  }, [sessionId, accessToken, navigate, user?.id]);
 
   useEffect(() => {
     const stream = localVideoRef.current?.srcObject;

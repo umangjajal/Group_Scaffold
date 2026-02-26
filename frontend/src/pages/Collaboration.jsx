@@ -50,7 +50,6 @@ export default function Collaboration() {
 
   useEffect(() => {
     connectSocket();
-    initializeTerminal();
     fetchFiles();
     fetchActivity();
 
@@ -69,32 +68,41 @@ export default function Collaboration() {
       setSelectedFile((current) => ({ ...(current || {}), comments: [newComment, ...(current?.comments || [])] }));
     };
 
+    socket.on('collab:file:snapshot', onSnapshot);
+    socket.on('collab:file:patched', onPatched);
+    socket.on('collab:file:commented', onCommented);
+
+    return () => {
+      socket.off('collab:file:snapshot', onSnapshot);
+      socket.off('collab:file:patched', onPatched);
+      socket.off('collab:file:commented', onCommented);
+    };
+  }, [selectedFileId, groupId]);
+
+  useEffect(() => {
+    initializeTerminal();
+
     const onTerminalData = (data) => xtermRef.current?.write(data);
     const onTerminalReady = () => {
       fitAddonRef.current?.fit();
       socket.emit('terminal:resize', { cols: xtermRef.current.cols, rows: xtermRef.current.rows });
     };
 
-    socket.on('collab:file:snapshot', onSnapshot);
-    socket.on('collab:file:patched', onPatched);
-    socket.on('collab:file:commented', onCommented);
     socket.on('terminal:data', onTerminalData);
     socket.on('terminal:ready', onTerminalReady);
     socket.on('terminal:error', ({ message }) => setError(message));
 
     return () => {
-      socket.off('collab:file:snapshot', onSnapshot);
-      socket.off('collab:file:patched', onPatched);
-      socket.off('collab:file:commented', onCommented);
       socket.off('terminal:data', onTerminalData);
       socket.off('terminal:ready', onTerminalReady);
       socket.emit('terminal:stop');
       if (xtermRef.current) {
         xtermRef.current.dispose();
+        xtermRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFileId]);
+  }, []);
 
   const textValue = useMemo(() => String(selectedFile?.content?.text || ''), [selectedFile]);
   const isSpreadsheet = selectedFile?.type === 'spreadsheet';

@@ -15,6 +15,7 @@ export default function RoomDashboard() {
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
+  const pendingCandidatesRef = useRef(new Map()); // peerId -> RTCIceCandidate[]
 
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
@@ -25,6 +26,7 @@ export default function RoomDashboard() {
   const [mediaError, setMediaError] = useState('');
 
   const [participants, setParticipants] = useState([]);
+  const participantsRef = useRef([]);
   const [remoteStreams, setRemoteStreams] = useState([]);
 
   const [messages, setMessages] = useState([]);
@@ -141,14 +143,18 @@ export default function RoomDashboard() {
     });
 
     socket.on('meeting:participants', ({ participants: existingPeers }) => {
-      setParticipants(existingPeers || []);
-      (existingPeers || []).forEach((peer) => createPeerConnection(peer.id, peer.name, true));
+      const next = existingPeers || [];
+      setParticipants(next);
+      participantsRef.current = next;
+      next.forEach((peer) => createPeerConnection(peer.id, peer.name, true));
     });
 
     socket.on('meeting:peer-joined', ({ peer }) => {
       setParticipants((prev) => {
         if (prev.some((p) => p.id === peer.id)) return prev;
-        return [...prev, peer];
+        const next = [...prev, peer];
+        participantsRef.current = next;
+        return next;
       });
       createPeerConnection(peer.id, peer.name, false);
     });
@@ -159,7 +165,11 @@ export default function RoomDashboard() {
 
     socket.on('meeting:peer-left', ({ peerId }) => {
       removePeer(peerId);
-      setParticipants((prev) => prev.filter((peer) => peer.id !== peerId));
+      setParticipants((prev) => {
+        const next = prev.filter((peer) => peer.id !== peerId);
+        participantsRef.current = next;
+        return next;
+      });
     });
 
     socket.on('task:list', ({ tasks: incomingTasks }) => {
@@ -242,7 +252,7 @@ export default function RoomDashboard() {
   async function handleMeetingSignal(from, signal) {
     try {
       if (!peerConnectionsRef.current.has(from)) {
-        const peer = participants.find((participant) => participant.id === from);
+        const peer = participantsRef.current.find((participant) => participant.id === from);
         await createPeerConnection(from, peer?.name, false);
       }
 
@@ -251,6 +261,17 @@ export default function RoomDashboard() {
 
       if (signal.sdp) {
         await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+        // Drain pending candidates
+        const pending = pendingCandidatesRef.current.get(from) || [];
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.warn('Delayed candidate failed', e);
+          }
+        }
+        pendingCandidatesRef.current.delete(from);
 
         if (signal.sdp.type === 'offer') {
           const answer = await pc.createAnswer();
@@ -264,7 +285,13 @@ export default function RoomDashboard() {
       }
 
       if (signal.candidate) {
-        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        if (pc.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        } else {
+          const pending = pendingCandidatesRef.current.get(from) || [];
+          pending.push(signal.candidate);
+          pendingCandidatesRef.current.set(from, pending);
+        }
       }
     } catch (error) {
       console.error('Signal handling error:', error);
@@ -277,6 +304,7 @@ export default function RoomDashboard() {
       pc.close();
       peerConnectionsRef.current.delete(peerId);
     }
+    pendingCandidatesRef.current.delete(peerId);
     setRemoteStreams((prev) => prev.filter((item) => item.peerId !== peerId));
   }
 
