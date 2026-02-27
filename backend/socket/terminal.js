@@ -8,10 +8,14 @@ try {
   pty = null;
 }
 
+const { BASE_DIR } = require('../utils/fileSync');
+const path = require('path');
+const fs = require('fs');
+
 const terminalSessions = new Map(); // socket.id -> ptyProcess
 
 module.exports = function registerTerminalSocket(io, socket) {
-  socket.on('terminal:start', ({ cols = 100, rows = 30 } = {}) => {
+  socket.on('terminal:start', ({ cols = 100, rows = 30, groupId } = {}) => {
     try {
       if (!pty) {
         socket.emit('terminal:error', { message: 'Terminal backend is unavailable. Install node-pty on server.' });
@@ -23,12 +27,21 @@ module.exports = function registerTerminalSocket(io, socket) {
         terminalSessions.delete(socket.id);
       }
 
+      let cwd = process.cwd();
+      if (groupId) {
+        const groupDir = path.join(BASE_DIR, String(groupId));
+        if (!fs.existsSync(groupDir)) {
+          fs.mkdirSync(groupDir, { recursive: true });
+        }
+        cwd = groupDir;
+      }
+
       const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/bash';
       const ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-color',
         cols: Number(cols) || 100,
         rows: Number(rows) || 30,
-        cwd: process.cwd(),
+        cwd,
         env: process.env,
       });
 

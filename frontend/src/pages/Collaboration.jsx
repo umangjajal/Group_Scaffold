@@ -43,6 +43,8 @@ export default function Collaboration() {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [gitMessage, setGitMessage] = useState('collab update');
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
 
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
@@ -65,7 +67,10 @@ export default function Collaboration() {
 
     const onCommented = ({ fileId, comment: newComment }) => {
       if (fileId !== selectedFileId) return;
-      setSelectedFile((current) => ({ ...(current || {}), comments: [newComment, ...(current?.comments || [])] }));
+      setSelectedFile((current) => ({ 
+        ...(current || {}), 
+        comments: [newComment, ...(current?.comments || [])] 
+      }));
     };
 
     socket.on('collab:file:snapshot', onSnapshot);
@@ -134,7 +139,7 @@ export default function Collaboration() {
 
       const term = new TerminalClass({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: 14,
         theme: { background: '#050b14' },
       });
       const fitAddon = new FitAddonClass();
@@ -144,7 +149,7 @@ export default function Collaboration() {
       term.onData((data) => socket.emit('terminal:input', { data }));
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
-      socket.emit('terminal:start', { cols: term.cols, rows: term.rows });
+      socket.emit('terminal:start', { cols: term.cols, rows: term.rows, groupId });
     } catch (e) {
       setError(e.message || 'Terminal initialization failed.');
     }
@@ -276,6 +281,9 @@ export default function Collaboration() {
     setComment('');
   }
 
+  const displayedHistory = showAllHistory ? history : history.slice(0, 5);
+  const displayedActivity = showAllActivity ? activity : activity.slice(0, 5);
+
   return (
     <div className="room-workspace-page">
       <section className="workspace-grid">
@@ -381,7 +389,20 @@ export default function Collaboration() {
           )}
 
           <section className="workspace-card" style={{ marginTop: '0.7rem' }}>
-            <h3 className="workspace-card__title">Inline Comments</h3>
+            <h3 className="workspace-card__title">Comments</h3>
+            <div className="scrollable-list" style={{ maxHeight: '150px', marginBottom: '0.5rem' }}>
+              {(selectedFile?.comments || []).map((c, i) => (
+                <div key={i} className="workspace-audit-item" style={{ marginBottom: '0.4rem' }}>
+                  <p>{c.text}</p>
+                  <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                    {c.author?.name || 'User'} • {new Date(c.createdAt || Date.now()).toLocaleString()}
+                  </small>
+                </div>
+              ))}
+              {(!selectedFile?.comments || selectedFile.comments.length === 0) && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>No comments yet.</p>
+              )}
+            </div>
             <div className="workspace-row" style={{ marginTop: '0.6rem' }}>
               <input
                 value={comment}
@@ -392,19 +413,14 @@ export default function Collaboration() {
               <button onClick={submitComment} className="btn btn--secondary">Comment</button>
             </div>
           </section>
-
-          <section className="workspace-card" style={{ marginTop: '0.7rem' }}>
-            <h3 className="workspace-card__title">Terminal</h3>
-            <div ref={terminalRef} className="workspace-terminal" />
-          </section>
         </main>
       </section>
 
       <aside className="workspace-sidebar">
         <section className="workspace-card">
           <h2 className="workspace-card__title">Version History</h2>
-          <div style={{ marginTop: '0.65rem' }}>
-            {history.map((version) => (
+          <div className="scrollable-list">
+            {displayedHistory.map((version) => (
               <article key={version._id} className="workspace-history-item">
                 <div className="workspace-history-row">
                   <span>v{version.version} | {version.patchSummary}</span>
@@ -412,6 +428,15 @@ export default function Collaboration() {
                 </div>
               </article>
             ))}
+            {history.length > 5 && (
+              <button 
+                onClick={() => setShowAllHistory(!showAllHistory)} 
+                className="btn btn--ghost" 
+                style={{ width: '100%', marginTop: '0.5rem' }}
+              >
+                {showAllHistory ? 'Show Less' : 'View More'}
+              </button>
+            )}
           </div>
         </section>
 
@@ -430,16 +455,31 @@ export default function Collaboration() {
 
         <section className="workspace-card">
           <h2 className="workspace-card__title">Audit Feed</h2>
-          <div style={{ marginTop: '0.65rem' }}>
-            {activity.map((log) => (
+          <div className="scrollable-list">
+            {displayedActivity.map((log) => (
               <article key={log._id} className="workspace-audit-item">
                 <strong>{log.action}</strong>
                 <p>{new Date(log.createdAt).toLocaleString()}</p>
+                {log.file && <p style={{ fontSize: '0.7rem' }}>File: {log.file.name}</p>}
               </article>
             ))}
+            {activity.length > 5 && (
+              <button 
+                onClick={() => setShowAllActivity(!showAllActivity)} 
+                className="btn btn--ghost" 
+                style={{ width: '100%', marginTop: '0.5rem' }}
+              >
+                {showAllActivity ? 'Show Less' : 'View More'}
+              </button>
+            )}
           </div>
         </section>
       </aside>
+
+      <section className="workspace-card" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
+        <h3 className="workspace-card__title">Terminal</h3>
+        <div ref={terminalRef} className="workspace-terminal large" />
+      </section>
     </div>
   );
 }

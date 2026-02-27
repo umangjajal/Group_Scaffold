@@ -361,6 +361,34 @@
   font-size: 0.82rem;
 }
 
+.workspace-terminal.large {
+  min-height: 25rem;
+}
+
+.scrollable-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.scrollable-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
 @media (min-width: 1100px) {
   .room-workspace-page {
     grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);

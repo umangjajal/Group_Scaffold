@@ -260,7 +260,15 @@ export default function RoomDashboard() {
       if (!pc) return;
 
       if (signal.sdp) {
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        const desc = new RTCSessionDescription(signal.sdp);
+        
+        // Prevent setting remote answer if we are already in stable state
+        if (desc.type === 'answer' && pc.signalingState === 'stable') {
+            console.log('Skipping answer: already stable');
+            return;
+        }
+
+        await pc.setRemoteDescription(desc);
 
         // Drain pending candidates
         const pending = pendingCandidatesRef.current.get(from) || [];

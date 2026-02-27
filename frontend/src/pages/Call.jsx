@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 
 const WS_URL = import.meta.env.VITE_API_WS_URL || 'http://localhost:4000';
 
 export default function Call() {
   const { sessionId } = useParams();
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const navigate = useNavigate();
 
   const localVideoRef = useRef(null);
@@ -20,10 +21,55 @@ export default function Call() {
   const [error, setError] = useState('');
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
+  const [groupName, setGroupName] = useState('');
+  const [localStream, setLocalStream] = useState(null);
+  const localStreamRef = useRef(null);
 
   const iceServers = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
   };
+
+  useEffect(() => {
+    async function initLocalStream() {
+      // Check for Secure Context (WebRTC requires HTTPS or localhost)
+      if (!window.isSecureContext) {
+        setError("Your browser requires a secure connection (HTTPS or localhost) for camera access. It will not work on an unsafe connection.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalStream(stream);
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Error accessing media devices.", err);
+        setError("Could not access camera/microphone. Ensure permissions are granted and you're on a secure (HTTPS) connection.");
+      }
+    }
+    initLocalStream();
+  }, []);
+
+  useEffect(() => {
+    if (localStream && localVideoRef.current && !localVideoRef.current.srcObject) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  useEffect(() => {
+    const fetchGroup = async () => {
+      try {
+        const { data } = await api.get(`/groups/${sessionId}`);
+        setGroupName(data.name);
+      } catch (err) {
+        console.error('Error fetching group:', err);
+        setGroupName(`Room ${sessionId}`);
+      }
+    };
+    if (sessionId) fetchGroup();
+  }, [sessionId]);
 
   useEffect(() => {
     const endCall = () => {
@@ -32,10 +78,7 @@ export default function Call() {
         peerConnectionRef.current = null;
       }
       pendingCandidatesRef.current = [];
-      if (localVideoRef.current?.srcObject) {
-        localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-        localVideoRef.current.srcObject = null;
-      }
+      // Don't stop local stream here if we want it to persist, or stop it if we want to reset
       if (remoteVideoRef.current?.srcObject) {
         remoteVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
         remoteVideoRef.current.srcObject = null;
@@ -46,10 +89,19 @@ export default function Call() {
     const startPeerConnection = async (isCaller, remoteUserId) => {
       peerConnectionRef.current = new RTCPeerConnection(iceServers);
 
-      const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideoRef.current.srcObject = localStream;
-      localStream.getTracks().forEach((track) => {
-        peerConnectionRef.current.addTrack(track, localStream);
+      // Use the existing localStream from ref
+      let currentStream = localStreamRef.current;
+      if (!currentStream) {
+        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalStream(currentStream);
+        localStreamRef.current = currentStream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = currentStream;
+        }
+      }
+
+      currentStream.getTracks().forEach((track) => {
+        peerConnectionRef.current.addTrack(track, currentStream);
       });
 
       peerConnectionRef.current.ontrack = (event) => {
@@ -156,16 +208,15 @@ export default function Call() {
   }, [sessionId, accessToken, navigate, user?.id]);
 
   useEffect(() => {
-    const stream = localVideoRef.current?.srcObject;
-    if (!stream) return;
+    if (!localStream) return;
 
-    stream.getVideoTracks().forEach((track) => {
+    localStream.getVideoTracks().forEach((track) => {
       track.enabled = cameraOn;
     });
-    stream.getAudioTracks().forEach((track) => {
+    localStream.getAudioTracks().forEach((track) => {
       track.enabled = micOn;
     });
-  }, [cameraOn, micOn]);
+  }, [cameraOn, micOn, localStream]);
 
   const handleEndCallClick = () => {
     if (socketRef.current) {
@@ -175,8 +226,8 @@ export default function Call() {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
-    if (localVideoRef.current?.srcObject) {
-      localVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
     }
     navigate('/groups');
   };
@@ -186,7 +237,7 @@ export default function Call() {
       <div className="call-layout">
         <header className="call-header">
           <div>
-            <h1 className="call-title">Call Session {sessionId}</h1>
+            <h1 className="call-title">{groupName || 'Call Session'}</h1>
             <p className="call-subtitle">Secure realtime call session for your room.</p>
           </div>
         </header>

@@ -6,6 +6,7 @@ const Membership = require('../models/Membership');
 const CollabFile = require('../models/CollabFile');
 const CollabVersion = require('../models/CollabVersion');
 const ActivityLog = require('../models/ActivityLog');
+const { syncToDisk } = require('../utils/fileSync');
 const { execFile } = require('child_process');
 const multer = require('multer');
 const path = require('path');
@@ -104,6 +105,8 @@ router.post('/groups/:groupId/files', asyncHandler(async (req, res) => {
     permissions: { approvalRequired: false },
   });
 
+  await syncToDisk(groupId, file.name, file.content);
+
   await CollabVersion.create({
     file: file._id,
     group: groupId,
@@ -127,7 +130,7 @@ router.post('/groups/:groupId/files', asyncHandler(async (req, res) => {
 
 router.get('/files/:fileId', asyncHandler(async (req, res) => {
   if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
-  const file = await CollabFile.findById(req.params.fileId);
+  const file = await CollabFile.findById(req.params.fileId).populate('comments.author', 'name email');
   if (!file) return res.status(404).json({ error: 'File not found.' });
 
   const membership = await ensureMembership(file.group, req.user.id);
@@ -307,6 +310,8 @@ router.post('/groups/:groupId/upload', upload.single('file'), asyncHandler(async
     createdBy: req.user.id,
     permissions: { approvalRequired: false },
   });
+
+  await syncToDisk(groupId, file.name, file.content);
 
   await CollabVersion.create({
     file: file._id,

@@ -4,6 +4,7 @@ const CollabFile = require('../models/CollabFile');
 const CollabVersion = require('../models/CollabVersion');
 const ActivityLog = require('../models/ActivityLog');
 const Notification = require('../models/Notification');
+const { syncToDisk } = require('../utils/fileSync');
 
 const fileCursorState = new Map(); // fileId -> Map<userId, cursor>
 const sheetLocks = new Map(); // fileId -> Map<cellId, { userId, until }>
@@ -39,11 +40,14 @@ module.exports = function registerCollabSocket(io, socket) {
   onSafe('collab:file:join', async ({ fileId }) => {
     if (!isValidObjectId(fileId)) return;
 
-    const file = await CollabFile.findById(fileId);
+    const file = await CollabFile.findById(fileId).populate('comments.author', 'name email');
     if (!file) return socket.emit('error', { message: 'File not found.' });
 
     const membership = await Membership.findOne({ group: file.group, user: socket.user.id });
     if (!membership) return socket.emit('error', { message: 'Unauthorized file access.' });
+
+    // Sync file to disk when joining
+    await syncToDisk(file.group, file.name, file.content);
 
     socket.join(`file:${fileId}`);
 
@@ -141,6 +145,9 @@ module.exports = function registerCollabSocket(io, socket) {
     file.latestVersion += 1;
     await file.save();
 
+    // Sync to disk
+    await syncToDisk(file.group, file.name, file.content);
+
     await CollabVersion.create({
       file: file._id,
       group: file.group,
@@ -189,21 +196,17 @@ module.exports = function registerCollabSocket(io, socket) {
     });
     await file.save();
 
-    for (const mentionUserId of mentionIds) {
-      await Notification.create({
-        user: mentionUserId,
-        type: 'mention',
-        message: `${socket.user.name} mentioned you in ${file.name}`,
-        data: { fileId, groupId: String(file.group), line },
-      });
-      io.to(`user:${mentionUserId}`).emit('notification:new', {
-        type: 'mention',
-        message: `${socket.user.name} mentioned you in ${file.name}`,
-        data: { fileId, groupId: String(file.group), line },
-      });
-    }
-
+    await file.populate('comments.author', 'name email');
     const comment = file.comments[0];
+    
+    await ActivityLog.create({
+      group: file.group,
+      file: file._id,
+      user: socket.user.id,
+      action: 'file_commented',
+      metadata: { text: comment.text, fileName: file.name },
+    });
+
     io.to(`file:${fileId}`).emit('collab:file:commented', { fileId, comment });
   });
 

@@ -5,6 +5,7 @@ const Group = require("../models/group");
 const Membership = require("../models/Membership");
 const Message = require("../models/Message");
 const Plans = require("../models/Plan");
+const { syncToDisk } = require("../utils/fileSync");
 
 // Helper function to generate 6-digit room code
 const generateRoomCode = () => {
@@ -22,16 +23,20 @@ router.post("/", auth, canCreateGroup, async (req, res) => {
   try {
     const ownerPlan = Plans[req.user.plan] || Plans["free"];
 
-    const newGroup = new Group({
+    const groupData = {
       name,
       description,
       owner: req.user.id,
       isPrivate: isPrivate || false,
-      roomCode: isPrivate ? generateRoomCode() : null, // Generate 6-digit code for private rooms
-      memberCount: 1, // ✅ default
+      memberCount: 1,
       limits: { maxMembers: ownerPlan.maxMembersPerGroup },
-    });
+    };
 
+    if (isPrivate) {
+      groupData.roomCode = generateRoomCode();
+    }
+
+    const newGroup = new Group(groupData);
     await newGroup.save();
 
     await Membership.create({
@@ -118,6 +123,29 @@ router.post("/join-by-code", auth, canJoinGroup, async (req, res) => {
   }
 });
 
+// GET /api/groups/:id - Get group details
+router.get("/:id", auth, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id).populate("owner", "name avatarUrl");
+    if (!group) return res.status(404).json({ error: "Group not found." });
+    res.json(group);
+  } catch (error) {
+    console.error("Error fetching group:", error);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// GET /api/groups/:id/members - Get group members
+router.get("/:id/members", auth, async (req, res) => {
+  try {
+    const members = await Membership.find({ group: req.params.id }).populate("user", "name email _id");
+    res.json(members);
+  } catch (error) {
+    console.error("Error fetching members:", error);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
 // POST /api/groups/:id/join
 router.post("/:id/join", auth, canJoinGroup, async (req, res) => {
   const groupId = req.params.id;
@@ -154,17 +182,6 @@ router.post("/:id/join", auth, canJoinGroup, async (req, res) => {
   } catch (error) {
     console.error("Error joining group:", error);
     res.status(500).json({ error: "Server error joining group." });
-  }
-});
-
-// GET /api/groups/:id/members - Get group members
-router.get("/:id/members", auth, async (req, res) => {
-  try {
-    const members = await Membership.find({ group: req.params.id }).populate("user", "name email _id");
-    res.json(members);
-  } catch (error) {
-    console.error("Error fetching members:", error);
-    res.status(500).json({ error: "Server error." });
   }
 });
 
