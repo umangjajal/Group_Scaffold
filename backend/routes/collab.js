@@ -74,6 +74,117 @@ function asyncHandler(handler) {
 
 router.use(auth, rateLimit({ windowMs: 60000, max: 240 }));
 
+router.post('/groups/:groupId/github/import', asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+  const { repoUrl, branch = 'main' } = req.body;
+  if (!repoUrl) return res.status(400).json({ error: 'repoUrl is required.' });
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
+
+  const membership = await ensureMembership(groupId, req.user.id);
+  if (!membership) return res.status(403).json({ error: 'Not a group member.' });
+
+  const { BASE_DIR } = require('../utils/fileSync');
+  const groupDir = path.join(BASE_DIR, String(groupId));
+
+  try {
+    if (fs.existsSync(groupDir) && fs.readdirSync(groupDir).length > 0) {
+       // Directory exists and is not empty. We might want to clone into a subfolder or just error out.
+       // For simplicity, let's clone into a subfolder named after the repo or just 'repo'
+    } else if (!fs.existsSync(groupDir)) {
+      await fs.promises.mkdir(groupDir, { recursive: true });
+    }
+
+    const repoName = repoUrl.split('/').pop().replace('.git', '') || 'repo';
+    const targetDir = path.join(groupDir, repoName);
+
+    await execFileAsync('git', ['clone', '--depth', '1', '-b', branch, repoUrl, targetDir]);
+
+    // Now scan and sync to DB
+    await syncFilesystemToDB(groupId, groupDir, req.user.id);
+
+    return res.json({ message: `Successfully imported ${repoName} from GitHub.` });
+  } catch (error) {
+    console.error('GitHub Import Error:', error);
+    return res.status(500).json({ error: `Import failed: ${error.message}` });
+  }
+}));
+
+router.post('/groups/:groupId/sync', asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
+
+  const membership = await ensureMembership(groupId, req.user.id);
+  if (!membership) return res.status(403).json({ error: 'Not a group member.' });
+
+  const { BASE_DIR } = require('../utils/fileSync');
+  const groupDir = path.join(BASE_DIR, String(groupId));
+  
+  if (!fs.existsSync(groupDir)) {
+    return res.status(404).json({ error: 'No files found on disk for this group.' });
+  }
+
+  await syncFilesystemToDB(groupId, groupDir, req.user.id);
+  return res.json({ message: 'Filesystem synced to database successfully.' });
+}));
+
+async function syncFilesystemToDB(groupId, baseDir, userId) {
+  const files = await walkDir(baseDir);
+  for (const f of files) {
+    const relativePath = path.relative(baseDir, f).replace(/\\/g, '/');
+    const ext = path.extname(f).toLowerCase();
+    
+    // Skip .git folder
+    if (relativePath.includes('.git/')) continue;
+
+    const existingFile = await CollabFile.findOne({ group: groupId, name: relativePath });
+    if (existingFile) continue;
+
+    const type = resolveUploadedType(ext);
+    let content = {};
+    
+    try {
+      const stats = fs.statSync(f);
+      if (stats.size > 5 * 1024 * 1024) { // Skip files > 5MB for content storage
+          content = { binary: true, originalName: path.basename(f), size: stats.size };
+      } else {
+          const buffer = fs.readFileSync(f);
+          const isText = isTextMimeType(require('mime-types').lookup(f) || '') || CODE_EXTENSIONS.has(ext) || TEXT_DOCUMENT_EXTENSIONS.has(ext);
+          if (isText) {
+              content = { text: buffer.toString('utf8') };
+          } else {
+              content = { binary: true, originalName: path.basename(f), size: stats.size };
+          }
+      }
+    } catch (e) {
+      console.warn(`Could not read file ${f}:`, e.message);
+      continue;
+    }
+
+    await CollabFile.create({
+      group: groupId,
+      name: relativePath,
+      type,
+      content,
+      createdBy: userId,
+    });
+  }
+}
+
+async function walkDir(dir) {
+  let results = [];
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const filePath = path.resolve(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat && stat.isDirectory()) {
+      results = results.concat(await walkDir(filePath));
+    } else {
+      results.push(filePath);
+    }
+  }
+  return results;
+}
+
 router.get('/groups/:groupId/files', asyncHandler(async (req, res) => {
   const { groupId } = req.params;
   if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
@@ -225,6 +336,34 @@ router.post('/files/:fileId/restore/:version', asyncHandler(async (req, res) => 
   return res.json({ file, restoreVersion });
 }));
 
+
+router.delete('/files/:fileId', asyncHandler(async (req, res) => {
+  if (!isValidId(req.params.fileId)) return res.status(400).json({ error: 'Invalid fileId.' });
+  const file = await CollabFile.findById(req.params.fileId);
+  if (!file) return res.status(404).json({ error: 'File not found.' });
+
+  const membership = await ensureMembership(file.group, req.user.id);
+  if (!membership || !['owner', 'moderator'].includes(membership.role)) {
+    return res.status(403).json({ error: 'Permission denied.' });
+  }
+
+  await CollabFile.findByIdAndDelete(req.params.fileId);
+  await CollabVersion.deleteMany({ file: req.params.fileId });
+  
+  // Optionally delete from disk too
+  const { BASE_DIR } = require('../utils/fileSync');
+  const filePath = path.join(BASE_DIR, String(file.group), file.name);
+  if(fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  await ActivityLog.create({
+    group: file.group,
+    user: req.user.id,
+    action: 'file_deleted',
+    metadata: { name: file.name },
+  });
+
+  return res.json({ message: 'File deleted successfully.' });
+}));
 
 router.post('/code/run', asyncHandler(async (req, res) => {
   const { groupId, code = '', language = 'javascript' } = req.body;

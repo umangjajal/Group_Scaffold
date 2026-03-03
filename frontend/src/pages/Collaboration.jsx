@@ -2,10 +2,27 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api';
 import { socket, connectSocket } from '../socket';
-
-const FILE_TYPES = ['document', 'code', 'spreadsheet'];
-const SPREADSHEET_COLUMNS = ['A', 'B', 'C', 'D'];
-const SPREADSHEET_ROWS = [1, 2, 3, 4, 5, 6];
+import Editor from '@monaco-editor/react';
+import { 
+  FolderIcon, 
+  DocumentIcon, 
+  ChevronRightIcon, 
+  ChevronDownIcon, 
+  PlayIcon, 
+  CloudArrowDownIcon, 
+  ArrowPathIcon, 
+  TrashIcon, 
+  PlusIcon, 
+  FolderPlusIcon,
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+  XMarkIcon,
+  CommandLineIcon,
+  VideoCameraIcon
+} from '@heroicons/react/24/outline';
+import ChatComponent from '../components/ChatComponent';
+import MemberListComponent from '../components/MemberListComponent';
+import '../styles/vscode.css';
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -30,30 +47,85 @@ function loadScript(src) {
   });
 }
 
+const FileTreeItem = ({ item, level, onSelect, onItemDelete, selectedId, expandedFolders, toggleFolder }) => {
+    const isFolder = item.type === 'folder';
+    const isExpanded = expandedFolders[item.path];
+    const paddingLeft = level * 12 + 10;
+
+    if (isFolder) {
+        return (
+            <div>
+                <div 
+                    className="vscode-file-item" 
+                    style={{ paddingLeft: `${paddingLeft}px` }}
+                    onClick={() => toggleFolder(item.path)}
+                >
+                    {isExpanded ? <ChevronDownIcon className="w-4 h-4 mr-1" /> : <ChevronRightIcon className="w-4 h-4 mr-1" />}
+                    <FolderIcon className="w-4 h-4 mr-1 text-blue-400" />
+                    <span>{item.name}</span>
+                </div>
+                {isExpanded && Object.values(item.children).sort((a,b) => {
+                    if (a.type === b.type) return a.name.localeCompare(b.name);
+                    return a.type === 'folder' ? -1 : 1;
+                }).map(child => (
+                    <FileTreeItem 
+                        key={child.path || child._id} 
+                        item={child} 
+                        level={level + 1} 
+                        onSelect={onSelect} 
+                        onItemDelete={onItemDelete}
+                        selectedId={selectedId}
+                        expandedFolders={expandedFolders}
+                        toggleFolder={toggleFolder}
+                    />
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div 
+            className={`vscode-file-item group ${selectedId === item._id ? 'active' : ''}`}
+            style={{ paddingLeft: `${paddingLeft}px` }}
+            onClick={() => onSelect(item._id)}
+        >
+            <DocumentIcon className="w-4 h-4 mr-1 text-gray-400" />
+            <span className="flex-1 overflow-hidden text-ellipsis">{item.name.split('/').pop()}</span>
+            <button 
+                className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if(window.confirm(`Delete ${item.name}?`)) onItemDelete(item._id);
+                }}
+            >
+                <TrashIcon className="w-3.5 h-3.5" />
+            </button>
+        </div>
+    );
+};
+
 export default function Collaboration() {
   const { groupId } = useParams();
   const [files, setFiles] = useState([]);
   const [selectedFileId, setSelectedFileId] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [fileName, setFileName] = useState('');
-  const [fileType, setFileType] = useState('document');
-  const [cursor, setCursor] = useState(0);
-  const [comment, setComment] = useState('');
   const [error, setError] = useState('');
-  const [gitMessage, setGitMessage] = useState('collab update');
-  const [showAllHistory, setShowAllHistory] = useState(false);
-  const [showAllActivity, setShowAllActivity] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState({ 'root': true });
+  const [githubUrl, setGithubUrl] = useState('');
+  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
+  const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' or 'members'
 
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
+  const editorRef = useRef(null);
 
   useEffect(() => {
     connectSocket();
     fetchFiles();
-    fetchActivity();
 
     const onSnapshot = (payload) => {
       if (payload.fileId !== selectedFileId) return;
@@ -65,115 +137,91 @@ export default function Collaboration() {
       setSelectedFile((current) => ({ ...(current || {}), content, version }));
     };
 
-    const onCommented = ({ fileId, comment: newComment }) => {
-      if (fileId !== selectedFileId) return;
-      setSelectedFile((current) => ({ 
-        ...(current || {}), 
-        comments: [newComment, ...(current?.comments || [])] 
-      }));
-    };
-
     socket.on('collab:file:snapshot', onSnapshot);
     socket.on('collab:file:patched', onPatched);
-    socket.on('collab:file:commented', onCommented);
 
     return () => {
       socket.off('collab:file:snapshot', onSnapshot);
       socket.off('collab:file:patched', onPatched);
-      socket.off('collab:file:commented', onCommented);
     };
   }, [selectedFileId, groupId]);
 
   useEffect(() => {
-    initializeTerminal();
+    async function initTerm() {
+      if (!terminalRef.current || xtermRef.current) return;
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
+        const styleId = 'xterm-css-cdn';
+        if (!document.getElementById(styleId)) {
+          const link = document.createElement('link');
+          link.id = styleId;
+          link.rel = 'stylesheet';
+          link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css';
+          document.head.appendChild(link);
+        }
+
+        const TerminalClass = window.Terminal;
+        const FitAddonClass = window.FitAddon?.FitAddon;
+        if (!TerminalClass || !FitAddonClass) return;
+
+        const term = new TerminalClass({ cursorBlink: true, fontSize: 13, theme: { background: '#1e1e1e' } });
+        const fitAddon = new FitAddonClass();
+        term.loadAddon(fitAddon);
+        term.open(terminalRef.current);
+        fitAddon.fit();
+        term.onData((data) => socket.emit('terminal:input', { data }));
+        xtermRef.current = term;
+        fitAddonRef.current = fitAddon;
+        socket.emit('terminal:start', { cols: term.cols, rows: term.rows, groupId });
+      } catch (e) { setError(e.message); }
+    }
+    initTerm();
 
     const onTerminalData = (data) => xtermRef.current?.write(data);
     const onTerminalReady = () => {
-      fitAddonRef.current?.fit();
-      socket.emit('terminal:resize', { cols: xtermRef.current.cols, rows: xtermRef.current.rows });
+        fitAddonRef.current?.fit();
+        if(xtermRef.current) socket.emit('terminal:resize', { cols: xtermRef.current.cols, rows: xtermRef.current.rows });
     };
 
     socket.on('terminal:data', onTerminalData);
     socket.on('terminal:ready', onTerminalReady);
-    socket.on('terminal:error', ({ message }) => setError(message));
 
     return () => {
       socket.off('terminal:data', onTerminalData);
       socket.off('terminal:ready', onTerminalReady);
       socket.emit('terminal:stop');
-      if (xtermRef.current) {
-        xtermRef.current.dispose();
-        xtermRef.current = null;
-      }
+      if (xtermRef.current) xtermRef.current.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [groupId]);
 
-  const textValue = useMemo(() => String(selectedFile?.content?.text || ''), [selectedFile]);
-  const isSpreadsheet = selectedFile?.type === 'spreadsheet';
-  const isBinaryUpload = Boolean(selectedFile?.content?.binary);
-  const isTextEditable = !isSpreadsheet && !isBinaryUpload;
-
-  async function initializeTerminal() {
-    if (!terminalRef.current || xtermRef.current) return;
-
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js');
-      await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
-      const styleId = 'xterm-css-cdn';
-      if (!document.getElementById(styleId)) {
-        const link = document.createElement('link');
-        link.id = styleId;
-        link.rel = 'stylesheet';
-        link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css';
-        document.head.appendChild(link);
-      }
-
-      const TerminalClass = window.Terminal;
-      const FitAddonClass = window.FitAddon?.FitAddon;
-
-      if (!TerminalClass || !FitAddonClass) {
-        setError('Unable to load xterm.js terminal assets.');
-        return;
-      }
-
-      const term = new TerminalClass({
-        cursorBlink: true,
-        fontSize: 14,
-        theme: { background: '#050b14' },
+  const fileTree = useMemo(() => {
+      const root = { name: 'Workspace', type: 'folder', children: {}, path: 'root' };
+      files.forEach(file => {
+          const parts = file.name.split('/');
+          let current = root;
+          let currentPath = 'root';
+          parts.forEach((part, index) => {
+              currentPath += '/' + part;
+              if (index === parts.length - 1) {
+                  current.children[part] = { ...file, type: 'file', path: currentPath };
+              } else {
+                  if (!current.children[part]) {
+                      current.children[part] = { name: part, type: 'folder', children: {}, path: currentPath };
+                  }
+                  current = current.children[part];
+              }
+          });
       });
-      const fitAddon = new FitAddonClass();
-      term.loadAddon(fitAddon);
-      term.open(terminalRef.current);
-      fitAddon.fit();
-      term.onData((data) => socket.emit('terminal:input', { data }));
-      xtermRef.current = term;
-      fitAddonRef.current = fitAddon;
-      socket.emit('terminal:start', { cols: term.cols, rows: term.rows, groupId });
-    } catch (e) {
-      setError(e.message || 'Terminal initialization failed.');
-    }
-  }
+      return root;
+  }, [files]);
 
   async function fetchFiles() {
     try {
       const { data } = await api.get(`/collab/groups/${groupId}/files`);
       setFiles(data);
-      if (!selectedFileId && data[0]) {
-        selectFile(data[0]._id);
-      }
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to fetch files.');
-    }
-  }
-
-  async function fetchActivity() {
-    try {
-      const { data } = await api.get('/collab/activity', { params: { groupId } });
-      setActivity(data);
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to fetch activity.');
-    }
+      if (!selectedFileId && data[0]) selectFile(data[0]._id);
+    } catch (e) { setError(e.response?.data?.error || 'Failed to fetch files.'); }
   }
 
   async function selectFile(fileId) {
@@ -182,304 +230,271 @@ export default function Collaboration() {
       setSelectedFileId(fileId);
       const { data } = await api.get(`/collab/files/${fileId}`);
       setSelectedFile(data);
-      const historyRes = await api.get(`/collab/files/${fileId}/history`);
-      setHistory(historyRes.data);
       socket.emit('collab:file:join', { fileId });
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to load file.');
-    }
+    } catch (e) { setError(e.response?.data?.error || 'Failed to load file.'); }
   }
 
-  async function createFile(e) {
-    e.preventDefault();
-    if (!fileName.trim()) return;
+  async function createFile(name) {
+    if (!name?.trim()) return;
     try {
-      const { data } = await api.post(`/collab/groups/${groupId}/files`, { name: fileName.trim(), type: fileType });
-      setFileName('');
+      const { data } = await api.post(`/collab/groups/${groupId}/files`, { name: name.trim(), type: 'code' });
       await fetchFiles();
       await selectFile(data._id);
-      await fetchActivity();
-    } catch (e2) {
-      setError(e2.response?.data?.error || 'Failed to create file.');
-    }
+    } catch (err) { setError(err.response?.data?.error || 'Creation failed.'); }
   }
 
-  async function uploadFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const { data } = await api.post(`/collab/groups/${groupId}/upload`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      await fetchFiles();
-      await selectFile(data._id);
-      await fetchActivity();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Upload failed.');
-    }
+  async function deleteFile(fileId) {
+      try {
+          await api.delete(`/collab/files/${fileId}`);
+          if(selectedFileId === fileId) {
+              setSelectedFileId('');
+              setSelectedFile(null);
+          }
+          await fetchFiles();
+      } catch (err) { setError(err.response?.data?.error || 'Delete failed.'); }
   }
 
-  async function saveVersion() {
-    if (!selectedFileId) return;
-    try {
-      await api.post(`/collab/files/${selectedFileId}/versions`, { patchSummary: 'Manual checkpoint' });
-      const historyRes = await api.get(`/collab/files/${selectedFileId}/history`);
-      setHistory(historyRes.data);
-      await fetchActivity();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to save version.');
-    }
+  async function saveFile() {
+      if(!selectedFileId) return;
+      try {
+          await api.post(`/collab/files/${selectedFileId}/versions`, { patchSummary: 'Manual save' });
+          setError('File saved successfully.');
+          setTimeout(() => setError(''), 3000);
+      } catch (err) { setError('Failed to save version.'); }
   }
 
-  async function restoreVersion(version) {
-    if (!selectedFileId) return;
-    try {
-      await api.post(`/collab/files/${selectedFileId}/restore/${version}`);
-      await selectFile(selectedFileId);
-      await fetchActivity();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to restore version.');
-    }
+  async function importGithub(e) {
+      e.preventDefault();
+      if (!githubUrl.trim()) return;
+      setIsImporting(true);
+      setError('');
+      try {
+          await api.post(`/collab/groups/${groupId}/github/import`, { repoUrl: githubUrl.trim() });
+          setShowGithubModal(false);
+          setGithubUrl('');
+          await fetchFiles();
+      } catch (err) {
+          setError(err.response?.data?.error || 'GitHub import failed.');
+      } finally {
+          setIsImporting(false);
+      }
   }
 
-  async function pushToGit() {
-    try {
-      const { data } = await api.post('/collab/git/push', { groupId, commitMessage: gitMessage, branch: 'main' });
-      await fetchActivity();
-      setError(data.message || 'Git push completed.');
-    } catch (e) {
-      setError(e.response?.data?.error || 'Git push failed.');
-    }
+  async function syncFs() {
+      try {
+          await api.post(`/collab/groups/${groupId}/sync`);
+          await fetchFiles();
+      } catch (err) { setError(err.response?.data?.error || 'Sync failed.'); }
   }
 
   function onTextChange(nextValue) {
-    if (!selectedFileId || !isTextEditable) return;
-    const delta = { from: 0, to: textValue.length, text: nextValue };
-    socket.emit('collab:file:patch', { fileId: selectedFileId, delta, patchSummary: 'Live text sync' });
-  }
-
-  function onSpreadsheetCellChange(cellId, value) {
     if (!selectedFileId) return;
-    socket.emit('collab:file:patch', {
-      fileId: selectedFileId,
-      delta: { cellId, value, lock: true },
-      patchSummary: `Cell ${cellId} updated`,
+    socket.emit('collab:file:patch', { 
+        fileId: selectedFileId, 
+        delta: { from: 0, to: (selectedFile?.content?.text || '').length, text: nextValue }, 
+        patchSummary: 'Live sync' 
     });
   }
 
-  function submitComment() {
-    if (!comment.trim() || !selectedFileId) return;
-    const mentionIds = Array.from(comment.matchAll(/@([a-f\d]{24})/gi)).map((m) => m[1]);
-    socket.emit('collab:file:comment', {
-      fileId: selectedFileId,
-      text: comment.trim(),
-      line: selectedFile?.type === 'code' ? cursor : null,
-      mentions: mentionIds,
-    });
-    setComment('');
-  }
+  const toggleFolder = (path) => {
+      setExpandedFolders(prev => ({ ...prev, [path]: !prev[path] }));
+  };
 
-  const displayedHistory = showAllHistory ? history : history.slice(0, 5);
-  const displayedActivity = showAllActivity ? activity : activity.slice(0, 5);
+  const handleEditorMount = (editor) => {
+      editorRef.current = editor;
+  };
+
+  const getLanguage = (filename) => {
+    if(!filename) return 'javascript';
+    const ext = filename.split('.').pop().toLowerCase();
+    const map = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', html: 'html', css: 'css', json: 'json', md: 'markdown' };
+    return map[ext] || 'plaintext';
+  };
+
+  const handleUndo = () => editorRef.current?.trigger('keyboard', 'undo', null);
+  const handleRedo = () => editorRef.current?.trigger('keyboard', 'redo', null);
+  const handleFind = () => editorRef.current?.trigger('keyboard', 'actions.find', null);
+  const handleReplace = () => editorRef.current?.trigger('keyboard', 'editor.action.startFindReplaceAction', null);
 
   return (
-    <div className="room-workspace-page">
-      <section className="workspace-grid">
-        <aside className="workspace-card">
-          <h2 className="workspace-card__title">Files</h2>
-          {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.7rem', marginBottom: 0 }}>{error}</div>}
-
-          <form onSubmit={createFile} className="workspace-form-grid" style={{ marginTop: '0.7rem' }}>
-            <input
-              className="input-control"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="New file name"
-            />
-            <select className="select-control" value={fileType} onChange={(e) => setFileType(e.target.value)}>
-              {FILE_TYPES.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            <button className="btn btn--primary" type="submit">Create File</button>
-          </form>
-
-          <label className="auth-label" htmlFor="file-upload" style={{ marginTop: '0.8rem' }}>Upload File</label>
-          <input id="file-upload" type="file" className="input-control" onChange={uploadFile} />
-
-          <div className="workspace-list" style={{ marginTop: '0.8rem' }}>
-            {files.map((file) => (
-              <button
-                key={file._id}
-                onClick={() => selectFile(file._id)}
-                className={`workspace-list__item ${selectedFileId === file._id ? 'is-active' : ''}`}
-              >
-                <strong>{file.name}</strong>
-                <div>{file.type} | v{file.latestVersion}</div>
-              </button>
-            ))}
+    <div className="vscode-layout">
+      {/* Top Menu Bar */}
+      <nav className="vscode-menubar">
+          <div className="vscode-menubar-item">
+            File
+            <div className="vscode-dropdown">
+                <div className="vscode-dropdown-item" onClick={() => { const n = prompt('New file path:'); if(n) createFile(n); }}>New File</div>
+                <div className="vscode-dropdown-item" onClick={() => { const n = prompt('New folder path:'); if(n) createFile(`${n}/.keep`); }}>New Folder</div>
+                <div className="vscode-dropdown-divider" />
+                <div className="vscode-dropdown-item" onClick={saveFile}>Save</div>
+                <div className="vscode-dropdown-divider" />
+                <div className="vscode-dropdown-item" onClick={syncFs}>Sync Filesystem</div>
+                <div className="vscode-dropdown-item" onClick={() => setShowGithubModal(true)}>Import GitHub...</div>
+            </div>
           </div>
-        </aside>
-
-        <main className="workspace-card workspace-editor">
-          <header className="room-header" style={{ marginBottom: '0.7rem' }}>
-            <div>
-              <h2 className="room-header__title">{selectedFile?.name || 'Select a file'}</h2>
-              <p className="room-header__subtitle">Live editing with version checkpoints.</p>
+          <div className="vscode-menubar-item">
+            Edit
+            <div className="vscode-dropdown">
+                <div className="vscode-dropdown-item" onClick={handleUndo}>Undo</div>
+                <div className="vscode-dropdown-item" onClick={handleRedo}>Redo</div>
+                <div className="vscode-dropdown-divider" />
+                <div className="vscode-dropdown-item" onClick={handleFind}>Find</div>
+                <div className="vscode-dropdown-item" onClick={handleReplace}>Replace</div>
             </div>
-            <button onClick={saveVersion} disabled={!selectedFileId} className="btn btn--secondary">
-              Save Version
-            </button>
-          </header>
-
-          {isTextEditable && (
-            <textarea
-              value={textValue}
-              onChange={(e) => onTextChange(e.target.value)}
-              onSelect={(e) => {
-                const pos = e.target.selectionStart || 0;
-                setCursor(pos);
-                socket.emit('collab:file:cursor', { fileId: selectedFileId, position: pos });
-              }}
-              className="workspace-text-editor"
-              placeholder="Start collaborating..."
-            />
-          )}
-
-          {isSpreadsheet && (
-            <div style={{ overflow: 'auto' }}>
-              <table className="workspace-spreadsheet">
-                <thead>
-                  <tr>
-                    <th />
-                    {SPREADSHEET_COLUMNS.map((col) => (
-                      <th key={col}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {SPREADSHEET_ROWS.map((row) => (
-                    <tr key={row}>
-                      <td>{row}</td>
-                      {SPREADSHEET_COLUMNS.map((col) => {
-                        const id = `${col}${row}`;
-                        const cell = selectedFile?.content?.cells?.[id];
-                        return (
-                          <td key={id}>
-                            <input
-                              value={cell?.value || ''}
-                              onChange={(e) => onSpreadsheetCellChange(id, e.target.value)}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          </div>
+          <div className="vscode-menubar-item">
+            View
+            <div className="vscode-dropdown">
+                <div className="vscode-dropdown-item" onClick={() => setLeftSidebarVisible(!leftSidebarVisible)}>Toggle Explorer</div>
+                <div className="vscode-dropdown-item" onClick={() => setRightSidebarVisible(!rightSidebarVisible)}>Toggle Right Sidebar</div>
+                <div className="vscode-dropdown-divider" />
+                <div className="vscode-dropdown-item" onClick={() => {
+                  if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+                  else document.exitFullscreen();
+                }}>Full Screen</div>
             </div>
-          )}
-
-          {!isSpreadsheet && isBinaryUpload && (
-            <div className="dashboard-alert" style={{ borderColor: 'rgba(245, 158, 11, 0.42)', color: '#fcd34d', background: 'rgba(120, 53, 15, 0.3)' }}>
-              This file is binary and cannot be edited inline. Upload text or code files for editing.
+          </div>
+          <div className="vscode-menubar-item">
+            Run
+            <div className="vscode-dropdown">
+                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm start\r' })}>Run Debugging</div>
+                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm test\r' })}>Run Tests</div>
+                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm run build\r' })}>Build Project</div>
             </div>
-          )}
+          </div>
+          <div className="vscode-menubar-item text-green-400 font-bold flex items-center gap-1" onClick={() => window.open(`/call/${groupId}`, '_blank')}>
+              <VideoCameraIcon className="w-4 h-4" /> Start Video Call
+          </div>
+          <div className="flex-1" />
+          {error && <div className="text-xs mr-4 px-2 py-1 rounded bg-blue-900/30 text-blue-300 animate-pulse">{error}</div>}
+      </nav>
 
-          <section className="workspace-card" style={{ marginTop: '0.7rem' }}>
-            <h3 className="workspace-card__title">Comments</h3>
-            <div className="scrollable-list" style={{ maxHeight: '150px', marginBottom: '0.5rem' }}>
-              {(selectedFile?.comments || []).map((c, i) => (
-                <div key={i} className="workspace-audit-item" style={{ marginBottom: '0.4rem' }}>
-                  <p>{c.text}</p>
-                  <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
-                    {c.author?.name || 'User'} • {new Date(c.createdAt || Date.now()).toLocaleString()}
-                  </small>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar */}
+        {leftSidebarVisible && (
+          <aside className="vscode-sidebar">
+            <div className="vscode-sidebar-header flex justify-between items-center">
+                <span>EXPLORER</span>
+                <div className="flex gap-2">
+                    <button onClick={() => {
+                        const name = prompt('Enter file name (can include paths, e.g. src/index.js)');
+                        if(name) createFile(name);
+                    }} title="New File" className="hover:text-blue-400"><DocumentIcon className="w-4 h-4" /></button>
+                    <button onClick={() => {
+                        const name = prompt('Enter folder name:');
+                        if(name) createFile(`${name}/.keep`);
+                    }} title="New Folder" className="hover:text-blue-400"><FolderPlusIcon className="w-4 h-4" /></button>
+                    <button onClick={syncFs} title="Refresh/Sync" className="hover:text-blue-400"><ArrowPathIcon className="w-4 h-4" /></button>
                 </div>
-              ))}
-              {(!selectedFile?.comments || selectedFile.comments.length === 0) && (
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>No comments yet.</p>
+            </div>
+            <div className="vscode-sidebar-content">
+              <FileTreeItem 
+                  item={fileTree} 
+                  level={0} 
+                  onSelect={selectFile} 
+                  onItemDelete={deleteFile}
+                  selectedId={selectedFileId} 
+                  expandedFolders={expandedFolders}
+                  toggleFolder={toggleFolder}
+              />
+            </div>
+          </aside>
+        )}
+
+        {/* Main Content */}
+        <main className="vscode-main">
+          <div className="vscode-editor-area">
+            <div className="vscode-tabs">
+              {selectedFile && <div className="vscode-tab active">{selectedFile.name.split('/').pop()}</div>}
+            </div>
+            <div className="flex-1 relative overflow-hidden">
+              {selectedFile ? (
+                <Editor
+                  height="100%"
+                  theme="vs-dark"
+                  path={selectedFile.name}
+                  language={getLanguage(selectedFile.name)}
+                  value={selectedFile.content?.text || ''}
+                  onMount={handleEditorMount}
+                  onChange={(v) => onTextChange(v || '')}
+                  options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true, wordWrap: 'on' }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-4">
+                  <DocumentIcon className="w-16 h-16 opacity-10" />
+                  <p>Select a file to start coding</p>
+                </div>
               )}
             </div>
-            <div className="workspace-row" style={{ marginTop: '0.6rem' }}>
-              <input
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Comment... use @userObjectId"
-                className="input-control"
-              />
-              <button onClick={submitComment} className="btn btn--secondary">Comment</button>
-            </div>
-          </section>
+          </div>
+
+          <div className="vscode-terminal-area">
+            <div className="vscode-terminal-header">TERMINAL</div>
+            <div ref={terminalRef} className="flex-1 p-1 overflow-hidden" />
+          </div>
         </main>
-      </section>
 
-      <aside className="workspace-sidebar">
-        <section className="workspace-card">
-          <h2 className="workspace-card__title">Version History</h2>
-          <div className="scrollable-list">
-            {displayedHistory.map((version) => (
-              <article key={version._id} className="workspace-history-item">
-                <div className="workspace-history-row">
-                  <span>v{version.version} | {version.patchSummary}</span>
-                  <button onClick={() => restoreVersion(version.version)} className="btn btn--ghost">Restore</button>
-                </div>
-              </article>
-            ))}
-            {history.length > 5 && (
+        {/* Right Sidebar (Chat & Members) */}
+        {rightSidebarVisible && (
+          <aside className="w-[320px] bg-[#252526] border-l border-[#333] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-around border-b border-[#333] bg-[#2d2d2d]">
               <button 
-                onClick={() => setShowAllHistory(!showAllHistory)} 
-                className="btn btn--ghost" 
-                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => setActiveTab('chat')}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'chat' ? 'bg-[#1e1e1e] text-blue-400 border-b border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
               >
-                {showAllHistory ? 'Show Less' : 'View More'}
+                <ChatBubbleLeftRightIcon className="w-4 h-4" /> Chat
               </button>
-            )}
-          </div>
-        </section>
-
-        <section className="workspace-card">
-          <h2 className="workspace-card__title">Push to Git</h2>
-          <div className="workspace-form-grid" style={{ marginTop: '0.65rem' }}>
-            <input
-              value={gitMessage}
-              onChange={(e) => setGitMessage(e.target.value)}
-              className="input-control"
-              placeholder="Commit message"
-            />
-            <button onClick={pushToGit} className="btn btn--secondary">Push Main Branch</button>
-          </div>
-        </section>
-
-        <section className="workspace-card">
-          <h2 className="workspace-card__title">Audit Feed</h2>
-          <div className="scrollable-list">
-            {displayedActivity.map((log) => (
-              <article key={log._id} className="workspace-audit-item">
-                <strong>{log.action}</strong>
-                <p>{new Date(log.createdAt).toLocaleString()}</p>
-                {log.file && <p style={{ fontSize: '0.7rem' }}>File: {log.file.name}</p>}
-              </article>
-            ))}
-            {activity.length > 5 && (
               <button 
-                onClick={() => setShowAllActivity(!showAllActivity)} 
-                className="btn btn--ghost" 
-                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => setActiveTab('members')}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'members' ? 'bg-[#1e1e1e] text-blue-400 border-b border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
               >
-                {showAllActivity ? 'Show Less' : 'View More'}
+                <UsersIcon className="w-4 h-4" /> Members
               </button>
-            )}
-          </div>
-        </section>
-      </aside>
+              <button onClick={() => setRightSidebarVisible(false)} className="px-3 text-gray-500 hover:text-red-400">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {activeTab === 'chat' ? <ChatComponent groupId={groupId} /> : <MemberListComponent groupId={groupId} />}
+            </div>
+          </aside>
+        )}
+      </div>
 
-      <section className="workspace-card" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-        <h3 className="workspace-card__title">Terminal</h3>
-        <div ref={terminalRef} className="workspace-terminal large" />
-      </section>
+      {/* Floating Call Button if not in call page */}
+      <div className="fixed bottom-6 right-6">
+          <button 
+            className="w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+            onClick={() => window.open(`/call/${groupId}`, '_blank')}
+          >
+            <VideoCameraIcon className="w-7 h-7" />
+          </button>
+      </div>
+
+      {/* GitHub Import Modal */}
+      {showGithubModal && (
+          <div className="modal-overlay">
+              <div className="modal-card p-6">
+                  <h2 className="text-xl font-bold mb-2">Import from GitHub</h2>
+                  <p className="text-sm text-gray-400 mb-4">Enter a public repository URL to clone it into your workspace.</p>
+                  <form onSubmit={importGithub}>
+                      <input 
+                        className="vscode-input mb-4" 
+                        placeholder="https://github.com/user/repo.git" 
+                        value={githubUrl}
+                        onChange={(e) => setGithubUrl(e.target.value)}
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                          <button type="button" className="btn btn--ghost" onClick={() => setShowGithubModal(false)}>Cancel</button>
+                          <button type="submit" className="btn btn--primary" disabled={isImporting}>
+                              {isImporting ? 'Cloning...' : 'Clone Repo'}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

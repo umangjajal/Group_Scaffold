@@ -1,17 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function Login() {
   const { saveAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const refresh = params.get('refresh');
+    if (token) {
+      axios.get(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` }})
+        .then(res => {
+          saveAuth({ user: res.data, accessToken: token, refreshToken: refresh });
+          navigate('/groups');
+        })
+        .catch(() => setError('OAuth login failed.'));
+    }
+  }, [location, saveAuth, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -84,6 +99,20 @@ export default function Login() {
             <button type="submit" disabled={loading} className="btn btn--primary auth-submit">
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
+            
+            <div style={{ margin: '1.5rem 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', position: 'relative' }}>
+              <span style={{ background: 'var(--surface-raised)', padding: '0 0.5rem', position: 'relative', zIndex: 1 }}>OR CONTINUE WITH</span>
+              <hr style={{ position: 'absolute', top: '50%', left: 0, right: 0, border: 'none', borderTop: '1px solid var(--surface-border)', zIndex: 0, margin: 0 }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+               <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={() => window.location.href = `${API_URL}/api/auth/google`}>
+                  Google
+               </button>
+               <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={() => window.location.href = `${API_URL}/api/auth/github`}>
+                  GitHub
+               </button>
+            </div>
           </form>
 
           <p className="auth-card__footer">

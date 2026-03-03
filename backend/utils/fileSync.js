@@ -10,10 +10,11 @@ const BASE_DIR = path.join(process.cwd(), 'workspace_files');
 async function syncToDisk(groupId, fileName, content) {
     const groupDir = path.join(BASE_DIR, String(groupId));
     const filePath = path.join(groupDir, fileName);
+    const parentDir = path.dirname(filePath);
 
     try {
-        if (!fs.existsSync(groupDir)) {
-            await mkdir(groupDir, { recursive: true });
+        if (!fs.existsSync(parentDir)) {
+            await mkdir(parentDir, { recursive: true });
         }
 
         let text = '';

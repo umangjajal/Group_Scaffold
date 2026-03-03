@@ -117,7 +117,7 @@ export default function Groups() {
   const privateRooms = groups.filter((g) => g.isPrivate);
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page theme-light">
       <AppNavbar />
 
       <section className="dashboard-hero">

@@ -3,6 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
+import { 
+  VideoCameraIcon, 
+  VideoCameraSlashIcon, 
+  MicrophoneIcon, 
+  PhoneXMarkIcon,
+  CommandLineIcon,
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+  ClipboardDocumentListIcon,
+  UserIcon,
+  PaperAirplaneIcon,
+  PlusIcon,
+  TrashIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -15,40 +30,38 @@ export default function RoomDashboard() {
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
-  const pendingCandidatesRef = useRef(new Map()); // peerId -> RTCIceCandidate[]
+  const participantsRef = useRef([]);
 
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
   const [members, setMembers] = useState([]);
+  const [groupName, setGroupName] = useState('');
 
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [mediaError, setMediaError] = useState('');
 
   const [participants, setParticipants] = useState([]);
-  const participantsRef = useRef([]);
   const [remoteStreams, setRemoteStreams] = useState([]);
+  const [remoteStates, setRemoteStates] = useState({}); // peerId -> { cameraOn, micOn }
 
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
 
   const [tasks, setTasks] = useState([]);
   const [taskInput, setTaskInput] = useState('');
+  
+  const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
 
   const token = localStorage.getItem('accessToken');
-
-  const axiosAuth = useMemo(
-    () =>
-      axios.create({
-        baseURL: API_URL,
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    [token]
-  );
+  const axiosAuth = useMemo(() => axios.create({
+    baseURL: API_URL,
+    headers: { Authorization: `Bearer ${token}` },
+  }), [token]);
 
   useEffect(() => {
     bootstrapRoom();
-
     return () => {
       leaveMeeting();
       if (socketRef.current) {
@@ -56,40 +69,35 @@ export default function RoomDashboard() {
         socketRef.current.emit('leave', { groupId: roomId });
         socketRef.current.disconnect();
       }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      peerConnectionsRef.current.forEach((pc) => pc.close());
-      peerConnectionsRef.current.clear();
+      if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+      peerConnectionsRef.current.forEach(pc => pc.close());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   useEffect(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
-
-    stream.getVideoTracks().forEach((track) => {
-      track.enabled = cameraOn;
-    });
-    stream.getAudioTracks().forEach((track) => {
-      track.enabled = micOn;
-    });
-  }, [cameraOn, micOn]);
+    stream.getVideoTracks().forEach(t => t.enabled = cameraOn);
+    stream.getAudioTracks().forEach(t => t.enabled = micOn);
+    socketRef.current?.emit('call:track-state', { sessionId: roomId, type: 'video', enabled: cameraOn });
+    socketRef.current?.emit('call:track-state', { sessionId: roomId, type: 'audio', enabled: micOn });
+  }, [cameraOn, micOn, roomId]);
 
   async function bootstrapRoom() {
     try {
       setLoading(true);
-      const res = await axiosAuth.get(`/api/groups/${roomId}/members`);
-      const groupMembers = Array.isArray(res.data) ? res.data : [];
-      const isUserMember = groupMembers.some((m) => m.user?._id === user?.id || m.user?._id === user?._id);
+      const res = await axiosAuth.get(`/api/groups/${roomId}`);
+      setGroupName(res.data.name);
+      
+      const membersRes = await axiosAuth.get(`/api/groups/${roomId}/members`);
+      const groupMembers = Array.isArray(membersRes.data) ? membersRes.data : [];
+      setMembers(groupMembers);
 
-      if (!isUserMember) {
+      if (!groupMembers.some(m => m.user?._id === user?.id)) {
         await axiosAuth.post(`/api/groups/${roomId}/join`);
       }
 
       setIsMember(true);
-      setMembers(groupMembers);
       await setupLocalMedia();
       initializeSocket();
     } catch (error) {
@@ -107,21 +115,11 @@ export default function RoomDashboard() {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-    } catch (error) {
-      setMediaError(`Camera/Mic unavailable: ${error.message}`);
-    }
+    } catch (error) { setMediaError(`Camera/Mic unavailable: ${error.message}`); }
   }
 
   function initializeSocket() {
-    const userToken = localStorage.getItem('accessToken');
-
-    const socket = io(API_URL, {
-      auth: { token: userToken },
-      reconnection: true,
-      reconnectionDelay: 800,
-      reconnectionDelayMax: 4000,
-    });
-
+    const socket = io(API_URL, { auth: { token: localStorage.getItem('accessToken') } });
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -130,373 +128,359 @@ export default function RoomDashboard() {
       socket.emit('task:list', { groupId: roomId });
     });
 
-    socket.on('message:new', (message) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: message._id,
-          text: message.text,
-          sender: message.sender?.name || 'Unknown',
-          timestamp: new Date(message.createdAt),
-        },
-      ]);
+    socket.on('message:new', (msg) => {
+      setMessages(prev => [...prev, {
+        id: msg._id,
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: new Date(msg.createdAt),
+      }]);
     });
 
     socket.on('meeting:participants', ({ participants: existingPeers }) => {
-      const next = existingPeers || [];
-      setParticipants(next);
-      participantsRef.current = next;
-      next.forEach((peer) => createPeerConnection(peer.id, peer.name, true));
+      setParticipants(existingPeers || []);
+      participantsRef.current = existingPeers || [];
+      existingPeers?.forEach(peer => createPeerConnection(peer.id, peer.name, true));
     });
 
     socket.on('meeting:peer-joined', ({ peer }) => {
-      setParticipants((prev) => {
-        if (prev.some((p) => p.id === peer.id)) return prev;
-        const next = [...prev, peer];
-        participantsRef.current = next;
-        return next;
-      });
+      setParticipants(prev => prev.some(p => p.id === peer.id) ? prev : [...prev, peer]);
+      participantsRef.current = [...participantsRef.current, peer];
       createPeerConnection(peer.id, peer.name, false);
     });
 
-    socket.on('meeting:signal', ({ from, signal }) => {
-      handleMeetingSignal(from, signal);
+    socket.on('meeting:signal', ({ from, signal }) => handleMeetingSignal(from, signal));
+    
+    socket.on('call:track-state', ({ userId, type, enabled }) => {
+        setRemoteStates(prev => ({ ...prev, [userId]: { ...prev[userId], [type === 'video' ? 'cameraOn' : 'micOn']: enabled } }));
     });
 
     socket.on('meeting:peer-left', ({ peerId }) => {
       removePeer(peerId);
-      setParticipants((prev) => {
-        const next = prev.filter((peer) => peer.id !== peerId);
-        participantsRef.current = next;
-        return next;
-      });
+      setParticipants(prev => prev.filter(p => p.id !== peerId));
+      participantsRef.current = participantsRef.current.filter(p => p.id !== peerId);
     });
 
-    socket.on('task:list', ({ tasks: incomingTasks }) => {
-      setTasks(Array.isArray(incomingTasks) ? incomingTasks : []);
-    });
-
+    socket.on('task:list', ({ tasks: t }) => setTasks(t || []));
     socket.on('task:upsert', ({ task }) => {
-      if (!task) return;
-      setTasks((prev) => {
-        const exists = prev.some((item) => item.id === task.id);
-        if (!exists) return [task, ...prev];
-        return prev.map((item) => (item.id === task.id ? task : item));
-      });
+      setTasks(prev => prev.some(i => i.id === task.id) ? prev.map(i => i.id === task.id ? task : i) : [task, ...prev]);
     });
-
-    socket.on('task:delete', ({ taskId }) => {
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    });
-  }
-
-  function getIceServers() {
-    const servers = [{ urls: 'stun:stun.l.google.com:19302' }];
-    if (import.meta.env.VITE_TURN_URL && import.meta.env.VITE_TURN_USER && import.meta.env.VITE_TURN_PASS) {
-      servers.push({
-        urls: import.meta.env.VITE_TURN_URL,
-        username: import.meta.env.VITE_TURN_USER,
-        credential: import.meta.env.VITE_TURN_PASS,
-      });
-    }
-    return servers;
+    socket.on('task:delete', ({ taskId }) => setTasks(prev => prev.filter(t => t.id !== taskId)));
   }
 
   async function createPeerConnection(peerId, peerName, initiator) {
     if (!peerId || peerConnectionsRef.current.has(peerId)) return;
-
-    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     peerConnectionsRef.current.set(peerId, pc);
 
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
-    }
+    if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
 
-    pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      setRemoteStreams((prev) => {
-        const existing = prev.find((item) => item.peerId === peerId);
-        if (existing) {
-          return prev.map((item) => (item.peerId === peerId ? { ...item, stream, name: peerName || item.name } : item));
-        }
-        return [...prev, { peerId, name: peerName || 'Participant', stream }];
+    pc.ontrack = (e) => {
+      setRemoteStreams(prev => {
+        if (prev.find(i => i.peerId === peerId)) return prev;
+        return [...prev, { peerId, name: peerName || 'Participant', stream: e.streams[0] }];
       });
     };
 
-    pc.onicecandidate = (event) => {
-      if (!event.candidate || !socketRef.current) return;
-      socketRef.current.emit('meeting:signal', {
-        groupId: roomId,
-        to: peerId,
-        signal: { candidate: event.candidate },
-      });
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-        removePeer(peerId);
-      }
+    pc.onicecandidate = (e) => {
+      if (e.candidate) socketRef.current?.emit('meeting:signal', { groupId: roomId, to: peerId, signal: { candidate: e.candidate } });
     };
 
     if (initiator) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socketRef.current?.emit('meeting:signal', {
-        groupId: roomId,
-        to: peerId,
-        signal: { sdp: pc.localDescription },
-      });
+      socketRef.current?.emit('meeting:signal', { groupId: roomId, to: peerId, signal: { sdp: pc.localDescription } });
     }
   }
 
   async function handleMeetingSignal(from, signal) {
-    try {
-      if (!peerConnectionsRef.current.has(from)) {
-        const peer = participantsRef.current.find((participant) => participant.id === from);
-        await createPeerConnection(from, peer?.name, false);
-      }
-
-      const pc = peerConnectionsRef.current.get(from);
-      if (!pc) return;
-
-      if (signal.sdp) {
-        const desc = new RTCSessionDescription(signal.sdp);
-        
-        // Prevent setting remote answer if we are already in stable state
-        if (desc.type === 'answer' && pc.signalingState === 'stable') {
-            console.log('Skipping answer: already stable');
-            return;
-        }
-
-        await pc.setRemoteDescription(desc);
-
-        // Drain pending candidates
-        const pending = pendingCandidatesRef.current.get(from) || [];
-        for (const candidate of pending) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (e) {
-            console.warn('Delayed candidate failed', e);
-          }
-        }
-        pendingCandidatesRef.current.delete(from);
-
-        if (signal.sdp.type === 'offer') {
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socketRef.current?.emit('meeting:signal', {
-            groupId: roomId,
-            to: from,
-            signal: { sdp: pc.localDescription },
-          });
-        }
-      }
-
-      if (signal.candidate) {
-        if (pc.remoteDescription) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        } else {
-          const pending = pendingCandidatesRef.current.get(from) || [];
-          pending.push(signal.candidate);
-          pendingCandidatesRef.current.set(from, pending);
-        }
-      }
-    } catch (error) {
-      console.error('Signal handling error:', error);
+    if (!peerConnectionsRef.current.has(from)) {
+      const p = participantsRef.current.find(i => i.id === from);
+      await createPeerConnection(from, p?.name, false);
     }
+    const pc = peerConnectionsRef.current.get(from);
+    if (!pc) return;
+
+    if (signal.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+      if (signal.sdp.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socketRef.current?.emit('meeting:signal', { groupId: roomId, to: from, signal: { sdp: pc.localDescription } });
+      }
+    }
+    if (signal.candidate) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
   }
 
   function removePeer(peerId) {
     const pc = peerConnectionsRef.current.get(peerId);
-    if (pc) {
-      pc.close();
-      peerConnectionsRef.current.delete(peerId);
-    }
-    pendingCandidatesRef.current.delete(peerId);
-    setRemoteStreams((prev) => prev.filter((item) => item.peerId !== peerId));
+    if (pc) pc.close();
+    peerConnectionsRef.current.delete(peerId);
+    setRemoteStreams(prev => prev.filter(i => i.peerId !== peerId));
   }
 
   function leaveMeeting() {
     socketRef.current?.emit('meeting:leave', { groupId: roomId });
-    peerConnectionsRef.current.forEach((pc) => pc.close());
+    peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
     setRemoteStreams([]);
     setParticipants([]);
   }
 
   function sendMessage() {
-    const text = messageInput.trim();
-    if (!text || !socketRef.current) return;
-    socketRef.current.emit('message:send', { groupId: roomId, text, mediaUrl: null });
+    if (!messageInput.trim() || !socketRef.current) return;
+    socketRef.current.emit('message:send', { groupId: roomId, text: messageInput.trim() });
     setMessageInput('');
   }
 
   function createTask() {
-    const title = taskInput.trim();
-    if (!title || !socketRef.current) return;
-    socketRef.current.emit('task:create', { groupId: roomId, title });
+    if (!taskInput.trim() || !socketRef.current) return;
+    socketRef.current.emit('task:create', { groupId: roomId, title: taskInput.trim() });
     setTaskInput('');
   }
 
-  if (loading) {
-    return <div className="call-page" style={{ display: 'grid', placeItems: 'center' }}>Loading room...</div>;
-  }
+  const startResizing = () => setIsResizing(true);
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth > 250 && newWidth < window.innerWidth * 0.8) setSidebarWidth(newWidth);
+    };
+    const stopResizing = () => setIsResizing(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing]);
 
-  if (!isMember) {
-    return <div className="call-page" style={{ display: 'grid', placeItems: 'center' }}>Access denied.</div>;
-  }
+  if (loading) return <div className="h-screen bg-[#0a0a0a] flex items-center justify-center text-white font-bold tracking-widest uppercase text-xs animate-pulse">Initializing Room Dashboard...</div>;
 
   return (
-    <div className="room-workspace-page">
-      <section className="room-workspace-main">
-        <header className="room-header">
-          <div>
-            <h1 className="room-header__title">Room {roomId}</h1>
-            <p className="room-header__subtitle">Realtime meeting, chat, tasks, and collaboration context.</p>
-          </div>
+    <div className="flex h-screen bg-[#050505] text-white overflow-hidden">
+      {/* Main Content: Video Stage */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-16 border-b border-gray-800 bg-[#0a0a0a] px-6 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                 <img src="/realtime-logo.svg" alt="Logo" className="w-5 h-5 invert" />
+              </div>
+              <div>
+                <h1 className="text-sm font-black tracking-tight">{groupName}</h1>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Live Collaboration Hub</p>
+              </div>
+           </div>
 
-          <div className="call-control-bar" role="toolbar" aria-label="Meeting controls">
-            <button
-              className={`call-control-btn ${cameraOn ? 'is-on' : 'is-off'}`}
-              onClick={() => setCameraOn((v) => !v)}
-              aria-pressed={cameraOn}
-            >
-              {cameraOn ? 'Camera On' : 'Camera Off'}
-            </button>
-            <button
-              className={`call-control-btn ${micOn ? 'is-on' : 'is-off'}`}
-              onClick={() => setMicOn((v) => !v)}
-              aria-pressed={micOn}
-            >
-              {micOn ? 'Mic On' : 'Mic Off'}
-            </button>
-            <button className="call-control-btn is-neutral" onClick={() => navigate(`/groups/${roomId}/collab`)}>
-              Open Workspace
-            </button>
-            <button className="call-control-btn is-danger" onClick={() => navigate('/groups')}>
-              Leave Room
-            </button>
-          </div>
+           <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setMicOn(!micOn)}
+                className={`p-2.5 rounded-xl transition-all ${micOn ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+                title={micOn ? "Mute Mic" : "Unmute Mic"}
+              >
+                {micOn ? <MicrophoneIcon className="w-5 h-5" /> : <div className="relative"><MicrophoneIcon className="w-5 h-5" /><div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1.5px] bg-white rotate-45" /></div></div>}
+              </button>
+              <button 
+                onClick={() => setCameraOn(!cameraOn)}
+                className={`p-2.5 rounded-xl transition-all ${cameraOn ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+                title={cameraOn ? "Stop Camera" : "Start Camera"}
+              >
+                {cameraOn ? <VideoCameraIcon className="w-5 h-5" /> : <VideoCameraSlashIcon className="w-5 h-5" />}
+              </button>
+              <div className="h-6 w-[1px] bg-gray-800 mx-1" />
+              <button 
+                onClick={() => navigate(`/groups/${roomId}/collab`)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+              >
+                <CommandLineIcon className="w-4 h-4" /> Open Workspace
+              </button>
+              <button 
+                onClick={() => navigate('/groups')}
+                className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-xl transition-all"
+                title="Leave Room"
+              >
+                <PhoneXMarkIcon className="w-5 h-5" />
+              </button>
+           </div>
         </header>
 
-        {mediaError && <div className="call-error">{mediaError}</div>}
+        <main className="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-[#0a0a0a] to-[#050505]">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <VideoCard title="You (Local)" isMe muted videoRef={localVideoRef} cameraOn={cameraOn} micOn={micOn} user={user} />
+              {remoteStreams.map((peer) => (
+                <VideoCard 
+                    key={peer.peerId} 
+                    title={peer.name} 
+                    stream={peer.stream} 
+                    cameraOn={remoteStates[peer.peerId]?.cameraOn ?? true}
+                    micOn={remoteStates[peer.peerId]?.micOn ?? true}
+                    user={{ name: peer.name }}
+                />
+              ))}
+           </div>
+           
+           {mediaError && (
+             <div className="mt-6 p-4 bg-red-600/20 border border-red-600/30 rounded-2xl text-red-400 text-sm font-medium">
+               {mediaError}
+             </div>
+           )}
+        </main>
+      </div>
 
-        <div className="workspace-video-grid">
-          <VideoCard title="You" muted videoRef={localVideoRef} />
-          {remoteStreams.map((peer) => (
-            <VideoCard key={peer.peerId} title={peer.name || peer.peerId} stream={peer.stream} />
-          ))}
-        </div>
+      {/* Resize Handle */}
+      <div 
+        className="w-1.5 cursor-col-resize bg-transparent hover:bg-blue-600/50 transition-colors"
+        onMouseDown={startResizing}
+      />
 
-        <section className="workspace-card">
-          <h2 className="workspace-card__title">Participants ({participants.length + 1})</h2>
-          <div className="workspace-card__body" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-            <span className="pill pill--active">{user?.name || 'You'} (You)</span>
-            {participants.map((peer) => (
-              <span key={peer.id} className="pill">{peer.name}</span>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <aside className="workspace-sidebar">
-        <Panel title="Live Chat">
-          <div className="workspace-list" style={{ marginBottom: '0.6rem' }}>
-            {messages.map((message) => (
-              <article key={message.id} className="workspace-list__item">
-                <strong>{message.sender}</strong>
-                <div>{message.text}</div>
-              </article>
-            ))}
-          </div>
-          <div className="workspace-row">
-            <input
-              className="input-control"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              placeholder="Type message"
-            />
-            <button className="btn btn--secondary" onClick={sendMessage}>Send</button>
-          </div>
-        </Panel>
-
-        <Panel title="Task Board">
-          <div className="workspace-row" style={{ marginBottom: '0.6rem' }}>
-            <input
-              className="input-control"
-              value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
-              placeholder="New task"
-            />
-            <button className="btn btn--primary" onClick={createTask}>Add</button>
-          </div>
-          <div className="workspace-list">
-            {tasks.map((task) => (
-              <article key={task.id} className="workspace-list__item" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.4rem', alignItems: 'center' }}>
-                <button
-                  className="btn btn--ghost"
-                  style={{ justifyContent: 'flex-start', paddingInline: '0.45rem' }}
-                  onClick={() =>
-                    socketRef.current?.emit('task:toggle', {
-                      groupId: roomId,
-                      taskId: task.id,
-                      completed: !task.completed,
-                    })
-                  }
-                >
-                  <span style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>{task.title}</span>
-                </button>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>v{task.version || 1}</span>
-                <button
-                  className="btn btn--danger"
-                  style={{ minWidth: '2.2rem', paddingInline: '0.45rem' }}
-                  onClick={() => socketRef.current?.emit('task:delete', { groupId: roomId, taskId: task.id })}
-                >
-                  x
-                </button>
-              </article>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title={`Members (${members.length})`}>
-          <div className="workspace-list">
-            {members.map((member) => (
-              <div key={member._id} className="workspace-list__item">
-                <strong>{member.user?.name}</strong>
-                <div style={{ color: '#94a3b8' }}>{member.role}</div>
+      {/* Resizable Sidebar */}
+      <aside 
+        className="bg-[#0a0a0a] border-l border-gray-800 flex flex-col min-w-[300px]"
+        style={{ width: sidebarWidth }}
+      >
+        {/* Chat Section */}
+        <section className="flex-1 flex flex-col min-h-0 border-b border-gray-800">
+           <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
+                 <ChatBubbleLeftRightIcon className="w-4 h-4 text-blue-500" /> Live Chat
               </div>
-            ))}
-          </div>
-        </Panel>
+           </div>
+           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((m, i) => {
+                const isMe = m.sender?._id === user?.id || m.sender === user?.id;
+                return (
+                  <div key={m.id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                    {!isMe && <span className="text-[10px] font-bold text-blue-400 mb-1">{m.sender?.name || m.sender}</span>}
+                    <div className={`px-3 py-2 rounded-xl text-sm max-w-[90%] break-words ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#1e1e1e] text-gray-200 rounded-tl-none border border-gray-800'}`}>
+                      {m.text}
+                    </div>
+                  </div>
+                );
+              })}
+           </div>
+           <div className="p-4 bg-[#111] border-t border-gray-800">
+              <form onSubmit={e => { e.preventDefault(); sendMessage(); }} className="flex items-center gap-2 bg-[#1a1a1a] rounded-xl px-2 py-1.5 border border-gray-800 focus-within:border-blue-500/50 transition-colors">
+                <input 
+                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-200 placeholder-gray-600"
+                  value={messageInput}
+                  onChange={e => setMessageInput(e.target.value)}
+                  placeholder="Type a message..."
+                />
+                <button type="submit" className="p-1.5 text-blue-500 hover:text-blue-400">
+                  <PaperAirplaneIcon className="w-5 h-5" />
+                </button>
+              </form>
+           </div>
+        </section>
+
+        {/* Members & Tasks Tabs */}
+        <section className="h-1/2 flex flex-col min-h-0">
+           <div className="flex border-b border-gray-800">
+              <button className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-blue-500 border-b-2 border-blue-600 bg-[#0f0f0f]">
+                Workspace Context
+              </button>
+           </div>
+           <div className="flex-1 overflow-y-auto p-4 space-y-8">
+              {/* Task Board */}
+              <div>
+                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">
+                  <ClipboardDocumentListIcon className="w-4 h-4" /> Task Board
+                </h4>
+                <div className="flex gap-2 mb-4">
+                  <input 
+                    className="flex-1 bg-[#1a1a1a] border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500/50"
+                    placeholder="Quick task..."
+                    value={taskInput}
+                    onChange={e => setTaskInput(e.target.value)}
+                  />
+                  <button onClick={createTask} className="p-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white rounded-lg transition-all">
+                    <PlusIcon className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {tasks.map(t => (
+                    <div key={t.id} className="group flex items-center gap-3 p-3 bg-[#111] border border-gray-800 rounded-xl hover:border-gray-700 transition-all">
+                      <button 
+                        onClick={() => socketRef.current?.emit('task:toggle', { groupId: roomId, taskId: t.id, completed: !t.completed })}
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${t.completed ? 'bg-green-600 border-green-500 text-white' : 'border-gray-700 bg-transparent text-transparent'}`}
+                      >
+                        <CheckCircleIcon className="w-4 h-4" />
+                      </button>
+                      <span className={`flex-1 text-xs font-medium ${t.completed ? 'text-gray-600 line-through' : 'text-gray-300'}`}>{t.title}</span>
+                      <button onClick={() => socketRef.current?.emit('task:delete', { groupId: roomId, taskId: t.id })} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-all">
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Members */}
+              <div>
+                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">
+                  <UsersIcon className="w-4 h-4" /> Room Members ({members.length})
+                </h4>
+                <div className="grid gap-2">
+                  {members.map(m => (
+                    <div key={m._id} className="flex items-center gap-3 p-2 hover:bg-[#1a1a1a] rounded-lg transition-colors group">
+                      <div className="w-8 h-8 bg-[#222] rounded-full flex items-center justify-center text-gray-500 border border-gray-800 group-hover:border-blue-500/30 transition-all">
+                        <UserIcon className="w-4 h-4" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-300">{m.user?.name}</span>
+                        <span className="text-[9px] text-gray-600 uppercase font-black tracking-tighter">{m.role}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+           </div>
+        </section>
       </aside>
     </div>
   );
 }
 
-function Panel({ title, children }) {
-  return (
-    <section className="workspace-card">
-      <h3 className="workspace-card__title">{title}</h3>
-      <div className="workspace-card__body">{children}</div>
-    </section>
-  );
-}
-
-function VideoCard({ title, stream, muted = false, videoRef }) {
+function VideoCard({ title, stream, isMe = false, muted = false, videoRef, cameraOn, micOn, user }) {
   const internalVideoRef = useRef(null);
   const ref = videoRef || internalVideoRef;
 
   useEffect(() => {
-    if (stream && ref.current) {
-      ref.current.srcObject = stream;
-    }
+    if (stream && ref.current) ref.current.srcObject = stream;
   }, [stream, ref]);
 
   return (
-    <article className="video-tile">
-      <video ref={ref} autoPlay playsInline muted={muted} className="video-tile__media" />
-      <div className="video-tile__label">{title}</div>
+    <article className="relative group rounded-2xl overflow-hidden aspect-video bg-[#0a0a0a] border border-gray-800 transition-all hover:border-gray-600">
+      {cameraOn ? (
+        <video ref={ref} autoPlay playsInline muted={muted} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a]">
+           <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-blue-900/30 flex items-center justify-center border-2 border-blue-500/20 shadow-2xl">
+              <UserIcon className="w-8 h-8 md:w-10 md:h-10 text-blue-400/80" />
+           </div>
+           <span className="text-xs md:text-sm font-black text-gray-400 tracking-tight uppercase">{user?.name}</span>
+        </div>
+      )}
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+      
+      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+         <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-lg border border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/90">{title} {isMe ? '(You)' : ''}</span>
+         </div>
+         <div className="flex gap-2">
+            {!micOn && (
+              <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-lg">
+                <div className="relative"><MicrophoneIcon className="w-3 h-3 text-white" /><div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-white rotate-45" /></div></div>
+              </div>
+            )}
+            {!cameraOn && (
+              <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-lg">
+                <VideoCameraSlashIcon className="w-3 h-3 text-white" />
+              </div>
+            )}
+         </div>
+      </div>
     </article>
   );
 }

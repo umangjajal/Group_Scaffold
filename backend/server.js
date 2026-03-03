@@ -16,6 +16,11 @@ const { router: adminRoutes, onlineUsers } = require('./routes/admin');
 const app = express();
 const server = http.createServer(app);
 
+// Passport Config
+const passport = require('passport');
+require('./config/passport')(passport);
+app.use(passport.initialize());
+
 // ---------------------------------
 // # MIDDLEWARE CONFIGURATION
 // ---------------------------------

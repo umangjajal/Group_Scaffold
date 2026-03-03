@@ -291,4 +291,33 @@ router.post("/forgot-password/reset", async (req, res) => {
   }
 });
 
+const passport = require('passport');
+
+// Google OAuth
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+router.get('/google/callback', passport.authenticate('google', { session: false }), (req, res) => {
+  const { accessToken, refreshToken } = generateTokens(req.user);
+  res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?token=${accessToken}&refresh=${refreshToken}`);
+});
+
+// GitHub OAuth
+router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
+
+router.get('/github/callback', passport.authenticate('github', { session: false }), (req, res) => {
+  const { accessToken, refreshToken } = generateTokens(req.user);
+  res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?token=${accessToken}&refresh=${refreshToken}`);
+});
+
+router.get("/:userId", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select("name avatarUrl status");
+    if (!user) return res.status(404).json({ error: "User not found." });
+    return res.json(user);
+  } catch (error) {
+    console.error("Get user error:", error);
+    return res.status(500).json({ error: "Server error." });
+  }
+});
+
 module.exports = router;
