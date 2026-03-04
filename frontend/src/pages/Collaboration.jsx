@@ -18,7 +18,7 @@ import {
   UsersIcon,
   XMarkIcon,
   CommandLineIcon,
-  VideoCameraIcon
+  Square2StackIcon
 } from '@heroicons/react/24/outline';
 import ChatComponent from '../components/ChatComponent';
 import MemberListComponent from '../components/MemberListComponent';
@@ -362,14 +362,42 @@ export default function Collaboration() {
                 <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm run build\r' })}>Build Project</div>
             </div>
           </div>
-          <div className="vscode-menubar-item text-green-400 font-bold flex items-center gap-1" onClick={() => window.open(`/call/${groupId}`, '_blank')}>
-              <VideoCameraIcon className="w-4 h-4" /> Start Video Call
-          </div>
           <div className="flex-1" />
           {error && <div className="text-xs mr-4 px-2 py-1 rounded bg-blue-900/30 text-blue-300 animate-pulse">{error}</div>}
       </nav>
 
       <div className="flex flex-1 overflow-hidden relative">
+        {/* Activity Bar */}
+        <div className="w-12 bg-[#333333] flex flex-col items-center py-4 gap-4 border-r border-[#1e1e1e]">
+           <button 
+             onClick={() => setLeftSidebarVisible(!leftSidebarVisible)}
+             className={`p-2 transition-colors ${leftSidebarVisible ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+             title="Explorer"
+           >
+             <Square2StackIcon className="w-6 h-6" />
+           </button>
+           <button 
+             onClick={() => {
+                setRightSidebarVisible(true);
+                setActiveTab('chat');
+             }}
+             className={`p-2 transition-colors ${rightSidebarVisible && activeTab === 'chat' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+             title="Chat"
+           >
+             <ChatBubbleLeftRightIcon className="w-6 h-6" />
+           </button>
+           <button 
+             onClick={() => {
+                setRightSidebarVisible(true);
+                setActiveTab('members');
+             }}
+             className={`p-2 transition-colors ${rightSidebarVisible && activeTab === 'members' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+             title="Members"
+           >
+             <UsersIcon className="w-6 h-6" />
+           </button>
+        </div>
+
         {/* Sidebar */}
         {leftSidebarVisible && (
           <aside className="vscode-sidebar">
@@ -459,16 +487,6 @@ export default function Collaboration() {
             </div>
           </aside>
         )}
-      </div>
-
-      {/* Floating Call Button if not in call page */}
-      <div className="fixed bottom-6 right-6">
-          <button 
-            className="w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-            onClick={() => window.open(`/call/${groupId}`, '_blank')}
-          >
-            <VideoCameraIcon className="w-7 h-7" />
-          </button>
       </div>
 
       {/* GitHub Import Modal */}

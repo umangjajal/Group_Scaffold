@@ -1,16 +1,20 @@
-// backend/server.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const path = require('path');
 const attachSocket = require('./socket');
 const { createCorsOriginValidator, parseAllowedOrigins } = require('./config/cors');
+
+// Import Gemini logic
+const { chatWithGemini } = require('./gemini'); 
 
 // Import routes
 const authRoutes = require('./routes/auth');
 const groupsRoutes = require('./routes/groups');
 const collabRoutes = require('./routes/collab');
+const uploadRoutes = require('./routes/upload');
 const { router: adminRoutes, onlineUsers } = require('./routes/admin');
 
 const app = express();
@@ -65,14 +69,14 @@ mongoose.connect(process.env.MONGO_URL, {
     
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash('admin@123456', 10);
-      const adminUser = await User.create({
+      await User.create({
         email: adminEmail,
         name: 'Admin',
         passwordHash: hashedPassword,
         role: 'admin',
         status: 'active'
       });
-      console.log('✅ Default admin user created. Email: admin@realtime-group.com, Password: admin@123456');
+      console.log('✅ Default admin user created.');
     }
   } catch (err) {
     console.error('Error creating default admin user:', err);
@@ -90,12 +94,31 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// New AI Route for Gemini
+app.post('/api/ai/chat', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  try {
+    const aiResponse = await chatWithGemini(prompt); 
+    res.json({ response: aiResponse });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get AI response' });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupsRoutes);
 app.use('/api/collab', collabRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// 404 handler (after all routes)
+// Serve static files from uploads
+app.use('/uploads', express.static(path.join(__dirname, 'workspace_files/uploads')));
+
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -117,7 +140,6 @@ attachSocket(server, onlineUsers);
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
-  console.log(`📝 API Docs: http://localhost:${PORT}/health`);
   console.log(`🌐 Allowed CORS origins: ${parseAllowedOrigins().join(', ')}`);
 });
 

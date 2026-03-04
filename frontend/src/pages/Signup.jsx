@@ -63,7 +63,7 @@ export default function Signup() {
           <p className="auth-brand__subtitle">Provision access for chat, meetings, and code collaboration.</p>
         </div>
 
-        <section className="auth-card glass-panel" aria-label="Sign up form">
+        <section className="auth-card" aria-label="Sign up form">
           <h2 className="auth-card__heading">Sign up</h2>
           <p className="auth-card__subheading">Start with a standard account and scale with your team.</p>
 

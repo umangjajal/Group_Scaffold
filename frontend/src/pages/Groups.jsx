@@ -6,6 +6,15 @@ import RoomCreationModal from '../components/RoomCreationModal';
 import JoinByCodeModal from '../components/JoinByCodeModal';
 import RoomCard from '../components/RoomCard';
 import AppNavbar from '../components/AppNavbar';
+import { 
+  MagnifyingGlassIcon, 
+  PlusIcon, 
+  KeyIcon,
+  Squares2X2Icon,
+  GlobeAltIcon,
+  LockClosedIcon,
+  ArrowPathIcon
+} from '@heroicons/react/24/outline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -29,22 +38,10 @@ export default function Groups() {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 
-  axiosAuth.interceptors.response.use(
-    (response) => response,
-    (err) => {
-      if (err.response?.status === 401) {
-        setError('Unauthorized. Please login again.');
-        setTimeout(() => navigate('/login'), 1200);
-      }
-      return Promise.reject(err);
-    }
-  );
-
   const fetchGroups = async () => {
-    setError('');
+    setLoading(true);
     try {
       const res = await axiosAuth.get('/api/groups');
-
       const groupsWithMembership = await Promise.all(
         res.data.map(async (group) => {
           try {
@@ -59,187 +56,191 @@ export default function Groups() {
           }
         })
       );
-
       setGroups(groupsWithMembership);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load rooms');
-    }
-  };
-
-  useEffect(() => {
-    fetchGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const createRoom = async (roomData) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await axiosAuth.post('/api/groups', roomData);
-      const newRoom = res.data.group;
-      setCreatedRoom(newRoom);
-      setGroups((prev) => [{ ...newRoom, isMember: true }, ...prev]);
-      setMessage('Room created successfully.');
-      setIsModalOpen(false);
-    } catch (err) {
-      throw new Error(err.response?.data?.error || 'Failed to create room');
+      setError('Failed to load rooms. Please refresh.');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  const createRoom = async (roomData) => {
+    try {
+      const res = await axiosAuth.post('/api/groups', roomData);
+      const newRoom = res.data.group;
+      setGroups((prev) => [{ ...newRoom, isMember: true }, ...prev]);
+      setIsModalOpen(false);
+      setMessage('New workspace ready.');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Creation failed');
+    }
+  };
+
   const joinGroup = async (id) => {
-    setError('');
-    setMessage('');
     try {
       await axiosAuth.post(`/api/groups/${id}/join`);
-      setMessage('Joined room successfully.');
-      setTimeout(() => navigate(`/room/${id}`), 400);
+      navigate(`/room/${id}`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to join room');
+      setError(err.response?.data?.error || 'Join failed');
     }
   };
 
   const filteredGroups = groups.filter((g) => {
-    const matchesSearch =
-      g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (g.description && g.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const matchesFilter =
-      filterType === 'all' ||
-      (filterType === 'public' && !g.isPrivate) ||
-      (filterType === 'private' && g.isPrivate);
-
+    const matchesSearch = g.name.toLowerCase().includes(searchTerm.toLowerCase()) || (g.description && g.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesFilter = filterType === 'all' || (filterType === 'public' && !g.isPrivate) || (filterType === 'private' && g.isPrivate);
     return matchesSearch && matchesFilter;
   });
 
-  const publicRooms = groups.filter((g) => !g.isPrivate);
-  const privateRooms = groups.filter((g) => g.isPrivate);
+  const stats = {
+    total: groups.length,
+    public: groups.filter(g => !g.isPrivate).length,
+    private: groups.filter(g => g.isPrivate).length
+  };
 
   return (
-    <div className="dashboard-page theme-light">
+    <div className="min-h-screen bg-[#fafafa] text-slate-900 font-sans selection:bg-blue-100">
       <AppNavbar />
 
-      <section className="dashboard-hero">
-        <div className="container-main">
-          <div className="dashboard-header">
-            <div>
-              <h1 className="dashboard-title">Team Dashboard</h1>
-              <p className="dashboard-subtitle">Create rooms, discover active spaces, and jump into shared execution.</p>
-            </div>
-            <div className="dashboard-actions">
-              <button onClick={() => setIsJoinCodeModalOpen(true)} className="btn btn--ghost">Join by Code</button>
-              <button onClick={() => setIsModalOpen(true)} className="btn btn--primary">Create Room</button>
-            </div>
+      <main className="pt-24 pb-20 px-6 max-w-[1400px] mx-auto">
+        
+        {/* Header Section */}
+        <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12">
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900">
+              Team <span className="text-blue-600">Dashboard</span>
+            </h1>
+            <p className="text-lg text-slate-500 font-medium">Manage your active workspaces and collaborative projects.</p>
           </div>
 
-          <div className="dashboard-stats">
-            <article className="stat-card">
-              <p className="stat-card__label">Total Rooms</p>
-              <p className="stat-card__value">{groups.length}</p>
-            </article>
-            <article className="stat-card">
-              <p className="stat-card__label">Public Rooms</p>
-              <p className="stat-card__value">{publicRooms.length}</p>
-            </article>
-            <article className="stat-card">
-              <p className="stat-card__label">Private Rooms</p>
-              <p className="stat-card__value">{privateRooms.length}</p>
-            </article>
+          <div className="flex flex-wrap items-center gap-3">
+            <button 
+              onClick={() => setIsJoinCodeModalOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-white text-slate-700 font-bold rounded-2xl border border-slate-200 hover:border-slate-300 transition-all shadow-sm"
+            >
+              <KeyIcon className="w-5 h-5 text-slate-400" />
+              Join by Code
+            </button>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 transform hover:-translate-y-0.5 active:scale-95"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Create Room
+            </button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="container-main dashboard-main">
-        {error && <div className="dashboard-alert dashboard-alert--error">{error}</div>}
-        {message && <div className="dashboard-alert dashboard-alert--success">{message}</div>}
-
-        {createdRoom && (
-          <div className="dashboard-banner">
-            <p className="dashboard-banner__title">New room created: {createdRoom.name}</p>
-            <p className="dashboard-banner__copy">Share the room code with invited contributors.</p>
-            {createdRoom.roomCode && (
-              <div className="workspace-row" style={{ marginTop: '0.55rem', maxWidth: '320px' }}>
-                <input className="input-control code-font" value={createdRoom.roomCode} readOnly />
-                <button
-                  className="btn btn--secondary"
-                  onClick={() => navigator.clipboard.writeText(createdRoom.roomCode)}
-                >
-                  Copy
-                </button>
+        {/* Stats Grid */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
+          {[
+            { label: 'Total Rooms', value: stats.total, icon: Squares2X2Icon, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Public Spaces', value: stats.public, icon: GlobeAltIcon, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Private Rooms', value: stats.private, icon: LockClosedIcon, color: 'text-amber-600', bg: 'bg-amber-50' }
+          ].map((stat, i) => (
+            <div key={i} className="flex items-center gap-6 p-6 bg-white border border-slate-200 rounded-[2rem] shadow-sm transition-all hover:shadow-md">
+              <div className={`w-14 h-14 rounded-2xl ${stat.bg} flex items-center justify-center ${stat.color}`}>
+                <stat.icon className="w-7 h-7" />
               </div>
-            )}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
+                <p className="text-3xl font-black text-slate-900">{stat.value}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Alerts */}
+        {message && (
+          <div className="mb-8 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-700 text-sm font-bold flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> {message}
+          </div>
+        )}
+        {error && (
+          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm font-bold animate-in shake duration-300">
+            {error}
           </div>
         )}
 
-        <div className="dashboard-filters glass-panel">
-          <div className="dashboard-filters__row">
-            <input
+        {/* Filter & Search Bar */}
+        <section className="sticky top-24 z-40 bg-white/80 backdrop-blur-xl border border-slate-200/60 p-3 rounded-[2rem] shadow-xl shadow-slate-200/40 mb-12 flex flex-col md:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input 
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search rooms by name or description"
-              className="input-control"
+              placeholder="Search workspaces..."
+              className="w-full pl-12 pr-4 py-3 bg-slate-50/50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all"
             />
-            <div className="filter-toggle-group" role="tablist" aria-label="Room type filter">
-              {['all', 'public', 'private'].map((type) => (
-                <button
-                  key={type}
-                  role="tab"
-                  aria-selected={filterType === type}
-                  onClick={() => setFilterType(type)}
-                  className={`filter-toggle ${filterType === type ? 'is-active' : ''}`}
-                >
-                  {type[0].toUpperCase() + type.slice(1)}
-                </button>
-              ))}
-            </div>
           </div>
-        </div>
+          
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full md:w-auto">
+            {['all', 'public', 'private'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`flex-1 md:flex-none px-6 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
+                  filterType === type 
+                    ? 'bg-white text-blue-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </section>
 
-        {filteredGroups.length > 0 ? (
-          <>
-            <div className="room-list-heading">
-              <h2>{filterType[0].toUpperCase() + filterType.slice(1)} Rooms</h2>
-              <span>({filteredGroups.length})</span>
-            </div>
-            <div className="room-grid">
-              {filteredGroups.map((room) => (
-                <RoomCard
-                  key={room._id}
-                  room={room}
-                  onJoin={() => joinGroup(room._id)}
-                  isMember={room.isMember || false}
-                />
-              ))}
-            </div>
-          </>
+        {/* Room Grid */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
+            <ArrowPathIcon className="w-10 h-10 animate-spin text-blue-600" />
+            <p className="text-sm font-black uppercase tracking-widest text-slate-400">Syncing workspaces...</p>
+          </div>
+        ) : filteredGroups.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {filteredGroups.map((room) => (
+              <RoomCard
+                key={room._id}
+                room={room}
+                onJoin={() => joinGroup(room._id)}
+                isMember={room.isMember || false}
+              />
+            ))}
+          </div>
         ) : (
-          <div className="dashboard-empty surface-card">
-            <h3>No rooms found</h3>
-            <p>{searchTerm ? 'Try a broader search query.' : 'Create your first room to start collaborating.'}</p>
+          <div className="flex flex-col items-center justify-center py-32 text-center bg-white border border-slate-200 border-dashed rounded-[3rem]">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+              <Squares2X2Icon className="w-10 h-10 text-slate-300" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight">No workspaces found</h3>
+            <p className="text-slate-500 font-medium mt-2 max-w-xs">
+              {searchTerm ? `Nothing matches "${searchTerm}" in ${filterType} rooms.` : "Your dashboard is currently empty. Start by creating a new workspace."}
+            </p>
             {!searchTerm && (
-              <div style={{ marginTop: '0.9rem' }}>
-                <button onClick={() => setIsModalOpen(true)} className="btn btn--primary">Create First Room</button>
-              </div>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="mt-8 px-8 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-500/20"
+              >
+                Create Your First Room
+              </button>
             )}
           </div>
         )}
-      </section>
+      </main>
 
+      {/* Modals */}
       <RoomCreationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onCreateRoom={createRoom} />
-
       <JoinByCodeModal
         isOpen={isJoinCodeModalOpen}
         onClose={() => setIsJoinCodeModalOpen(false)}
-        onSuccess={(groupId) => {
-          setIsJoinCodeModalOpen(false);
-          setMessage('Joined room successfully.');
-          setTimeout(() => navigate(`/room/${groupId}`), 400);
-        }}
+        onSuccess={(groupId) => navigate(`/room/${groupId}`)}
       />
-
-      <button onClick={() => setIsModalOpen(true)} className="dashboard-fab" title="Create new room">+</button>
     </div>
   );
 }

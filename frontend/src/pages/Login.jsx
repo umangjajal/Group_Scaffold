@@ -58,7 +58,7 @@ export default function Login() {
           <p className="auth-brand__subtitle">One login for engineers, product teams, and admins.</p>
         </div>
 
-        <section className="auth-card glass-panel" aria-label="Sign in form">
+        <section className="auth-card" aria-label="Sign in form">
           <h2 className="auth-card__heading">Sign in</h2>
           <p className="auth-card__subheading">Continue to your collaboration workspace.</p>
 
@@ -100,16 +100,15 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
             
-            <div style={{ margin: '1.5rem 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', position: 'relative' }}>
-              <span style={{ background: 'var(--surface-raised)', padding: '0 0.5rem', position: 'relative', zIndex: 1 }}>OR CONTINUE WITH</span>
-              <hr style={{ position: 'absolute', top: '50%', left: 0, right: 0, border: 'none', borderTop: '1px solid var(--surface-border)', zIndex: 0, margin: 0 }} />
+            <div className="auth-divider">
+              <span>OR CONTINUE WITH</span>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-               <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={() => window.location.href = `${API_URL}/api/auth/google`}>
+            <div className="social-btns">
+               <button type="button" className="btn-social" onClick={() => window.location.href = `${API_URL}/api/auth/google`}>
                   Google
                </button>
-               <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={() => window.location.href = `${API_URL}/api/auth/github`}>
+               <button type="button" className="btn-social" onClick={() => window.location.href = `${API_URL}/api/auth/github`}>
                   GitHub
                </button>
             </div>
