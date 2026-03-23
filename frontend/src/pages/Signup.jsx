@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { publicApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import realtimeLogo from '../assets/realtimeLogo';
+import { buildBackendUrl } from '../network/config';
+import {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  assertFirebaseConfigured,
+  getFirebaseAuthErrorMessage,
+} from '../firebase';
 
 export default function Signup() {
   const { saveAuth } = useAuth();
@@ -44,7 +51,7 @@ export default function Signup() {
         password,
       };
 
-      const res = await axios.post(`${API_URL}/api/auth/register`, payload);
+      const res = await publicApi.post('/auth/register', payload);
       saveAuth(res.data);
       navigate('/groups');
     } catch (err) {
@@ -54,11 +61,31 @@ export default function Signup() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      assertFirebaseConfigured();
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      const res = await publicApi.post('/auth/firebase-verify', { idToken });
+
+      saveAuth(res.data);
+      navigate('/groups');
+    } catch (err) {
+      console.error("Google Auth Error:", err);
+      setError(getFirebaseAuthErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-page">
       <div className="auth-frame">
         <div className="auth-brand">
-          <img src="/realtime-logo.svg" alt="Realtime Group logo" className="auth-brand__logo" />
+          <img src={realtimeLogo} alt="Realtime Group logo" className="auth-brand__logo" />
           <h1 className="auth-brand__title">Create your workspace account</h1>
           <p className="auth-brand__subtitle">Provision access for chat, meetings, and code collaboration.</p>
         </div>
@@ -136,6 +163,19 @@ export default function Signup() {
             <button type="submit" disabled={loading} className="btn btn--primary auth-submit">
               {loading ? 'Creating account...' : 'Create account'}
             </button>
+
+            <div className="auth-divider">
+              <span>OR CONTINUE WITH</span>
+            </div>
+
+            <div className="social-btns">
+               <button type="button" className="btn-social" onClick={handleGoogleLogin} disabled={loading}>
+                  Google
+               </button>
+               <button type="button" className="btn-social" onClick={() => window.location.href = buildBackendUrl('/api/auth/github')}>
+                  GitHub
+               </button>
+            </div>
           </form>
 
           <p className="auth-card__footer">

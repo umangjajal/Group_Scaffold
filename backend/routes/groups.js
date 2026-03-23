@@ -185,6 +185,26 @@ router.post("/:id/join", auth, canJoinGroup, async (req, res) => {
   }
 });
 
+// GET /api/groups/:id/messages
+router.get("/:id/messages", auth, async (req, res) => {
+  try {
+    const isMember = await Membership.exists({ user: req.user.id, group: req.params.id });
+    if (!isMember) {
+      return res.status(403).json({ error: "You are not a member of this group." });
+    }
+
+    const messages = await Message.find({ group: req.params.id })
+      .sort({ createdAt: 1 })
+      .limit(200)
+      .populate("sender", "name avatarUrl");
+
+    return res.json({ messages });
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return res.status(500).json({ error: "Server error fetching messages." });
+  }
+});
+
 // DELETE /api/groups/:groupId/members/:userId - Remove member from group
 router.delete("/:groupId/members/:userId", auth, async (req, res) => {
   try {

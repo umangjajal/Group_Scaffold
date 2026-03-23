@@ -1,35 +1,51 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext();
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+function readStoredUser() {
+  const stored = localStorage.getItem('user');
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(stored);
+  } catch (error) {
+    console.warn('Invalid stored user payload. Clearing local auth state.');
+    localStorage.removeItem('user');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    return null;
+  }
+}
+
+function persistValue(key, value) {
+  if (typeof value === 'string' && value) {
+    localStorage.setItem(key, value);
+    return;
+  }
+
+  localStorage.removeItem(key);
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser ] = useState(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser ] = useState(() => readStoredUser());
   const [accessToken, setAccessToken] = useState(() => localStorage.getItem('accessToken'));
   const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem('refreshToken'));
-
-  useEffect(() => {
-    const interceptor = axios.interceptors.request.use(config => {
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
-      }
-      return config;
-    });
-    return () => axios.interceptors.request.eject(interceptor);
-  }, [accessToken]);
 
   const saveAuth = ({ user, accessToken, refreshToken }) => {
     setUser (user);
     setAccessToken(accessToken);
     setRefreshToken(refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
+
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
+
+    persistValue('accessToken', accessToken);
+    persistValue('refreshToken', refreshToken);
   };
 
   const logout = () => {

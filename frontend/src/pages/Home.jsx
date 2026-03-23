@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AppNavbar from '../components/AppNavbar';
+import realtimeLogo from '../assets/realtimeLogo';
 import { 
   CommandLineIcon, 
   VideoCameraIcon, 
@@ -189,7 +190,7 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
-               <img src="/realtime-logo.svg" alt="Logo" className="w-4 h-4 invert" />
+               <img src={realtimeLogo} alt="Logo" className="w-4 h-4 invert" />
             </div>
             <span className="font-bold text-slate-900">RealtimeGroup</span>
           </div>

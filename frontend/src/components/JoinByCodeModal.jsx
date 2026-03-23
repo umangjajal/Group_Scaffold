@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import api from '../api';
 
 export default function JoinByCodeModal({ isOpen, onClose, onSuccess }) {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const token = localStorage.getItem('accessToken');
 
   const handleJoinByCode = async (e) => {
     e.preventDefault();
@@ -22,11 +18,7 @@ export default function JoinByCodeModal({ isOpen, onClose, onSuccess }) {
     }
 
     try {
-      const response = await axios.post(
-        `${API_URL}/api/groups/join-by-code`,
-        { roomCode },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.post('/groups/join-by-code', { roomCode });
 
       setRoomCode('');
       onSuccess(response.data.groupId);
@@ -40,29 +32,29 @@ export default function JoinByCodeModal({ isOpen, onClose, onSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-card glass-panel">
-        <h2>Join Private Room</h2>
-        <p className="modal-subtitle">Paste a valid room access code to join instantly.</p>
+    <div className="modal-overlay bg-black/40 backdrop-blur-sm">
+      <div className="modal-card bg-white border border-gray-100 rounded-2xl shadow-2xl p-8 font-sans max-w-md w-full mx-4">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">Join Private Room</h2>
+        <p className="text-sm text-gray-500 mb-8 font-medium">Paste a valid room access code to join instantly.</p>
 
-        {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{error}</div>}
+        {error && <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-lg mb-6 animate-shake">{error}</div>}
 
-        <form onSubmit={handleJoinByCode} className="workspace-form-grid" style={{ marginTop: '0.85rem' }}>
-          <div>
-            <label className="auth-label" htmlFor="roomCode">6-digit Room Code</label>
+        <form onSubmit={handleJoinByCode} className="flex flex-col gap-6">
+          <div className="group">
+            <label className="text-[11px] uppercase font-bold text-gray-400 tracking-widest mb-2 block group-focus-within:text-[#007acc] transition-colors" htmlFor="roomCode">6-digit Room Code</label>
             <input
               id="roomCode"
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
+              placeholder="0 0 0 0 0 0"
               maxLength="6"
-              className="input-control code-font"
-              style={{ textAlign: 'center', letterSpacing: '0.2em' }}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-xl font-mono font-bold text-gray-900 text-center tracking-[0.5em] focus:bg-white focus:border-[#007acc] focus:ring-4 focus:ring-[#007acc]/10 focus:outline-none transition-all placeholder:text-gray-200"
+              autoFocus
             />
           </div>
 
-          <div className="modal-actions" style={{ marginTop: '0.2rem' }}>
+          <div className="flex items-center justify-end gap-4 mt-4 pt-6 border-t border-gray-50">
             <button
               type="button"
               onClick={() => {
@@ -70,16 +62,16 @@ export default function JoinByCodeModal({ isOpen, onClose, onSuccess }) {
                 setError('');
                 onClose();
               }}
-              className="btn btn--ghost"
+              className="px-5 py-2.5 text-sm font-bold text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || roomCode.length !== 6}
-              className="btn btn--primary"
+              className="px-8 py-2.5 bg-[#007acc] hover:bg-[#0062a3] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#007acc]/20 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
-              {loading ? 'Joining...' : 'Join Room'}
+              {loading ? '...' : 'Join Room'}
             </button>
           </div>
         </form>

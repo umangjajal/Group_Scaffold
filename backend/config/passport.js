@@ -38,20 +38,26 @@ module.exports = function(passport) {
     passport.use(new GitHubStrategy({
         clientID: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        callbackURL: "/api/auth/github/callback"
+        callbackURL: process.env.GITHUB_CALLBACK_URL || "/api/auth/github/callback"
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
           const email = profile.emails ? profile.emails[0].value : `${profile.username}@github.com`;
-          let user = await User.findOne({ email });
+          let user = await User.findOne({ $or: [{ githubId: profile.id }, { email }] });
+          
           if (user) {
+            user.githubId = profile.id;
+            user.githubAccessToken = accessToken;
+            await user.save();
             return done(null, user);
           } else {
             const newUser = new User({
               name: profile.displayName || profile.username,
               email: email,
               avatarUrl: profile._json.avatar_url,
-              status: 'active'
+              status: 'active',
+              githubId: profile.id,
+              githubAccessToken: accessToken
             });
             await newUser.save();
             return done(null, newUser);

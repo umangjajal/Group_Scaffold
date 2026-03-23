@@ -1,11 +1,69 @@
 const router = require("express").Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const admin = require("firebase-admin");
 const User = require("../models/User");
 const Otp = require("../models/Otp");
 const { sendEmailOtp } = require("../services/notify");
 const auth = require("../middleware/auth");
 const { toUserResponse } = require("../utils/userResponse");
+
+function buildFrontendRedirectUrl(req, pathname, params = {}, baseUrlOverride = null) {
+  const configuredFrontendUrl = String(process.env.FRONTEND_URL || "").trim().replace(/\/$/, "");
+  const protocol = req.get("x-forwarded-proto") || req.protocol;
+  const host = req.get("x-forwarded-host") || req.get("host");
+  
+  // Use baseUrlOverride if provided (e.g., from state=local), 
+  // otherwise fallback to env var or the current request host.
+  const baseUrl = baseUrlOverride || configuredFrontendUrl || `${protocol}://${host}`;
+  const query = new URLSearchParams(params).toString();
+
+  return `${baseUrl}${pathname}${query ? `?${query}` : ""}`;
+}
+
+// Initialize Firebase Admin
+let firebaseAdminInitError = "";
+let firebaseAdminReady = false;
+
+if (process.env.FIREBASE_PROJECT_ID) {
+  try {
+    if (admin.apps.length === 0) {
+        const serviceAccount = {
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL || undefined,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || undefined,
+        };
+
+        if (serviceAccount.projectId && serviceAccount.clientEmail && serviceAccount.privateKey) {
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount)
+            });
+            console.log("✅ Firebase Admin initialized with Service Account.");
+        } else {
+            admin.initializeApp({
+                projectId: process.env.FIREBASE_PROJECT_ID
+            });
+            console.log("⚠️ Firebase Admin initialized with Project ID only (local mode).");
+        }
+    }
+    firebaseAdminReady = true;
+  } catch (err) {
+    firebaseAdminInitError = err.message;
+    console.error("❌ Firebase Admin initialization error:", err.message);
+  }
+}
+
+function getFirebaseAdminConfigError() {
+  if (firebaseAdminReady || admin.apps.length > 0) {
+    return "";
+  }
+
+  if (!process.env.FIREBASE_PROJECT_ID) {
+    return "FIREBASE_PROJECT_ID is not configured on the server.";
+  }
+
+  return firebaseAdminInitError || "Firebase Admin failed to initialize.";
+}
 
 function generateOtpCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -291,22 +349,130 @@ router.post("/forgot-password/reset", async (req, res) => {
   }
 });
 
+// Firebase Token Verification Route
+router.post("/firebase-verify", async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) return res.status(400).json({ error: "ID Token is required." });
+
+  const firebaseConfigError = getFirebaseAdminConfigError();
+  if (firebaseConfigError) {
+    return res.status(503).json({
+      error: `Firebase authentication is not configured on the server. ${firebaseConfigError}`,
+    });
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const { email, name, picture, email_verified } = decodedToken;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email not provided by Firebase." });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = new User({
+        email,
+        name: name || email.split('@')[0],
+        avatarUrl: picture,
+        emailVerified: !!email_verified,
+        status: 'active',
+        nameVerified: looksRealName(name)
+      });
+      await user.save();
+    } else {
+        // Update avatar if it changed
+        if (picture && !user.avatarUrl) {
+            user.avatarUrl = picture;
+            await user.save();
+        }
+    }
+
+    const { accessToken, refreshToken } = generateTokens(user);
+    return res.json({
+      user: toUserResponse(user),
+      accessToken,
+      refreshToken,
+    });
+  } catch (error) {
+    console.error("Firebase verify error:", error);
+    if (error?.code === "app/no-app") {
+      return res.status(503).json({
+        error: "Firebase authentication is not configured on the server.",
+      });
+    }
+
+    return res.status(401).json({ error: "Invalid Firebase token." });
+  }
+});
+
 const passport = require('passport');
+const axios = require('axios');
 
 // Google OAuth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get('/google/callback', passport.authenticate('google', { session: false }), (req, res) => {
   const { accessToken, refreshToken } = generateTokens(req.user);
-  res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?token=${accessToken}&refresh=${refreshToken}`);
+  res.redirect(buildFrontendRedirectUrl(req, '/login', { token: accessToken, refresh: refreshToken }));
 });
 
 // GitHub OAuth
-router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
+router.get('/github', (req, res, next) => {
+  const state = req.query.state || 'default';
+  passport.authenticate('github', { scope: ['user:email', 'repo'], state })(req, res, next);
+});
 
-router.get('/github/callback', passport.authenticate('github', { session: false }), (req, res) => {
-  const { accessToken, refreshToken } = generateTokens(req.user);
-  res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?token=${accessToken}&refresh=${refreshToken}`);
+router.get('/github/callback', (req, res, next) => {
+  passport.authenticate('github', { session: false }, (err, user, info) => {
+    if (err || !user) {
+      return res.redirect(buildFrontendRedirectUrl(req, '/login', { error: 'auth_failed' }));
+    }
+    
+    const { accessToken, refreshToken } = generateTokens(user);
+    const state = req.query.state;
+    let baseUrlOverride = null;
+
+    if (state === 'local') {
+      // Common development ports for Vite/React
+      baseUrlOverride = 'http://localhost:5173';
+    } else if (state && (state.startsWith('http://localhost') || state.includes('vercel.app'))) {
+      // Allow specific overrides if they look like valid development or production URLs
+      baseUrlOverride = state;
+    }
+
+    res.redirect(buildFrontendRedirectUrl(req, '/login', { token: accessToken, refresh: refreshToken }, baseUrlOverride));
+  })(req, res, next);
+});
+
+// Fetch user's GitHub repositories
+router.get('/github/repos', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.githubAccessToken) {
+      return res.status(401).json({ error: 'GitHub account not linked or session expired.' });
+    }
+
+    const response = await axios.get('https://api.github.com/user/repos', {
+      headers: {
+        Authorization: `token ${user.githubAccessToken}`,
+        Accept: 'application/vnd.github.v3+json'
+      },
+      params: {
+        sort: 'updated',
+        per_page: 100
+      }
+    });
+
+    return res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching GitHub repos:', error.response?.data || error.message);
+    return res.status(error.response?.status || 500).json({ 
+      error: 'Failed to fetch GitHub repositories.',
+      details: error.response?.data?.message || error.message
+    });
+  }
 });
 
 router.get("/:userId", auth, async (req, res) => {

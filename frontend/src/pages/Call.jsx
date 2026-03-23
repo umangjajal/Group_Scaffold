@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api';
+import { createSocketConnection } from '../socket';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   VideoCameraIcon, 
@@ -15,8 +15,6 @@ import {
   BookmarkIcon,
   BookmarkSlashIcon
 } from '@heroicons/react/24/solid';
-
-const WS_URL = import.meta.env.VITE_API_WS_URL || 'http://localhost:4000';
 
 export default function Call() {
   const { sessionId } = useParams();
@@ -34,6 +32,7 @@ export default function Call() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [remoteCameraOn, setRemoteCameraOn] = useState(true);
+  const [remoteMicOn, setRemoteMicOn] = useState(true);
   const [groupName, setGroupName] = useState('');
   const [localStream, setLocalStream] = useState(null);
   const [pinnedUser, setPinnedUser] = useState(null); // 'local' or 'remote'
@@ -70,7 +69,7 @@ export default function Call() {
   }, [sessionId]);
 
   useEffect(() => {
-    socketRef.current = io(WS_URL, { auth: { token: accessToken } });
+    socketRef.current = createSocketConnection({ auth: { token: accessToken } });
 
     const startPeerConnection = async (isCaller, remoteUserId) => {
       peerConnectionRef.current = new RTCPeerConnection(iceServers);
@@ -103,7 +102,7 @@ export default function Call() {
             await startPeerConnection(sorted[0] === user?.id, other);
             // Fetch other user info
             try {
-              const { data } = await api.get(`/users/${other}`);
+              const { data } = await api.get(`/auth/${other}`);
               setRemoteUser(data);
             } catch(e) {}
         }
@@ -134,7 +133,10 @@ export default function Call() {
     });
 
     socketRef.current.on('call:track-state', ({ userId, type, enabled }) => {
-        if (userId !== user.id && type === 'video') setRemoteCameraOn(enabled);
+        if (userId !== user.id) {
+            if (type === 'video') setRemoteCameraOn(enabled);
+            if (type === 'audio') setRemoteMicOn(enabled);
+        }
     });
 
     socketRef.current.on('call:ended', () => {
@@ -153,6 +155,7 @@ export default function Call() {
     localStream.getVideoTracks().forEach(t => t.enabled = cameraOn);
     localStream.getAudioTracks().forEach(t => t.enabled = micOn);
     socketRef.current?.emit('call:track-state', { sessionId, type: 'video', enabled: cameraOn });
+    socketRef.current?.emit('call:track-state', { sessionId, type: 'audio', enabled: micOn });
   }, [cameraOn, micOn, localStream, sessionId]);
 
   const toggleFullScreen = () => {
@@ -198,8 +201,24 @@ export default function Call() {
                   <span className="text-xl font-medium text-gray-300">{remoteUser?.name || 'Remote Participant'}</span>
                 </div>
               )}
-              <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/50 backdrop-blur-md rounded-lg text-xs font-medium flex items-center gap-2">
-                <SpeakerWaveIcon className="w-3 h-3 text-green-400" /> {remoteUser?.name || 'Participant'}
+              <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                <div className="px-3 py-1 bg-black/50 backdrop-blur-md rounded-lg text-xs font-medium flex items-center gap-2">
+                    {remoteMicOn ? <SpeakerWaveIcon className="w-3 h-3 text-green-400" /> : <div className="relative"><MicrophoneIcon className="w-3 h-3 text-red-500" /><div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-white rotate-45" /></div></div>} 
+                    {remoteUser?.name || 'Participant'}
+                </div>
+                {!remoteCameraOn && (
+                    <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-full">
+                        <VideoCameraSlashIcon className="w-3 h-3 text-white" />
+                    </div>
+                )}
+                {!remoteMicOn && (
+                    <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-full">
+                        <div className="relative">
+                            <MicrophoneIcon className="w-3 h-3 text-white" />
+                            <div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-white rotate-45" /></div>
+                        </div>
+                    </div>
+                )}
               </div>
               <button onClick={() => setPinnedUser(pinnedUser === 'remote' ? null : 'remote')} className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/80 rounded-full">
                 {pinnedUser === 'remote' ? <BookmarkSlashIcon className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}
@@ -220,8 +239,23 @@ export default function Call() {
                   <span className="text-sm font-medium text-gray-400">You (Camera Off)</span>
                 </div>
               )}
-              <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/50 backdrop-blur-md rounded-lg text-xs font-medium flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> You
+              <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                <div className="px-3 py-1 bg-black/50 backdrop-blur-md rounded-lg text-xs font-medium flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> You
+                </div>
+                {!cameraOn && (
+                    <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-full">
+                        <VideoCameraSlashIcon className="w-3 h-3 text-white" />
+                    </div>
+                )}
+                {!micOn && (
+                    <div className="p-1.5 bg-red-600/80 backdrop-blur-md rounded-full">
+                        <div className="relative">
+                            <MicrophoneIcon className="w-3 h-3 text-white" />
+                            <div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-white rotate-45" /></div>
+                        </div>
+                    </div>
+                )}
               </div>
               <button onClick={() => setPinnedUser(pinnedUser === 'local' ? null : 'local')} className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/80 rounded-full">
                 {pinnedUser === 'local' ? <BookmarkSlashIcon className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}

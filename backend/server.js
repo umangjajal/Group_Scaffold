@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -15,10 +16,17 @@ const authRoutes = require('./routes/auth');
 const groupsRoutes = require('./routes/groups');
 const collabRoutes = require('./routes/collab');
 const uploadRoutes = require('./routes/upload');
+const verifyRoutes = require('./routes/verify');
 const { router: adminRoutes, onlineUsers } = require('./routes/admin');
 
 const app = express();
 const server = http.createServer(app);
+const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
+const frontendIndexPath = path.join(frontendDistPath, 'index.html');
+
+function hasFrontendBuild() {
+  return fs.existsSync(frontendIndexPath);
+}
 
 // Passport Config
 const passport = require('passport');
@@ -110,6 +118,7 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/verify', verifyRoutes);
 app.use('/api/groups', groupsRoutes);
 app.use('/api/collab', collabRoutes);
 app.use('/api/admin', adminRoutes);
@@ -117,6 +126,16 @@ app.use('/api/upload', uploadRoutes);
 
 // Serve static files from uploads
 app.use('/uploads', express.static(path.join(__dirname, 'workspace_files/uploads')));
+
+app.use(express.static(frontendDistPath, { index: false }));
+
+app.get(/^\/(?!api(?:\/|$)|uploads(?:\/|$)|socket\.io(?:\/|$)).*/, (req, res, next) => {
+  if (!hasFrontendBuild()) {
+    return next();
+  }
+
+  return res.sendFile(frontendIndexPath);
+});
 
 // 404 handler
 app.use((req, res) => {

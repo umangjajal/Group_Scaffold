@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import realtimeLogo from '../assets/realtimeLogo';
 import { 
   Bars3Icon, 
   XMarkIcon, 
@@ -36,7 +37,7 @@ export default function AppNavbar() {
       <div className="container-main flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group" onClick={() => setIsOpen(false)}>
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-             <img src="/realtime-logo.svg" alt="Logo" className="w-6 h-6 invert" />
+             <img src={realtimeLogo} alt="Logo" className="w-6 h-6 invert" />
           </div>
           <span className={`text-xl font-black tracking-tight ${!scrolled && isHome ? 'text-blue-900' : 'text-gray-900'}`}>
             Realtime<span className="text-blue-600">Group</span>

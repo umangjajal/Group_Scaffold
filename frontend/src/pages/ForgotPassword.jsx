@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { publicApi } from '../api';
 import { Link, useNavigate } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import realtimeLogo from '../assets/realtimeLogo';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -20,7 +19,7 @@ export default function ForgotPassword() {
     setMessage('');
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/forgot-password/send-otp`, { email });
+      const res = await publicApi.post('/auth/forgot-password/send-otp', { email });
       setMessage(res.data.message || 'OTP sent successfully');
       setStep(2);
     } catch (err) {
@@ -36,7 +35,7 @@ export default function ForgotPassword() {
     setMessage('');
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/forgot-password/reset`, {
+      const res = await publicApi.post('/auth/forgot-password/reset', {
         email,
         code,
         newPassword,
@@ -54,7 +53,7 @@ export default function ForgotPassword() {
     <div className="auth-page">
       <div className="auth-frame">
         <div className="auth-brand">
-          <img src="/realtime-logo.svg" alt="Realtime Group logo" className="auth-brand__logo" />
+          <img src={realtimeLogo} alt="Realtime Group logo" className="auth-brand__logo" />
           <h1 className="auth-brand__title">Reset password</h1>
           <p className="auth-brand__subtitle">Recover account access with a one-time code.</p>
         </div>

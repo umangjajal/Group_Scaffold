@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import RoomCreationModal from '../components/RoomCreationModal';
@@ -16,8 +16,6 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-
 export default function Groups() {
   const [groups, setGroups] = useState([]);
   const [error, setError] = useState('');
@@ -31,21 +29,15 @@ export default function Groups() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
-  const token = localStorage.getItem('accessToken');
-
-  const axiosAuth = axios.create({
-    baseURL: API_URL,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
 
   const fetchGroups = async () => {
     setLoading(true);
     try {
-      const res = await axiosAuth.get('/api/groups');
+      const res = await api.get('/groups');
       const groupsWithMembership = await Promise.all(
         res.data.map(async (group) => {
           try {
-            const memberRes = await axiosAuth.get(`/api/groups/${group._id}/members`);
+            const memberRes = await api.get(`/groups/${group._id}/members`);
             const userId = user?._id || user?.id;
             const isMember = memberRes.data.some(
               (m) => (m.user && m.user._id === userId) || m.userId === userId || m._id === userId
@@ -70,7 +62,7 @@ export default function Groups() {
 
   const createRoom = async (roomData) => {
     try {
-      const res = await axiosAuth.post('/api/groups', roomData);
+      const res = await api.post('/groups', roomData);
       const newRoom = res.data.group;
       setGroups((prev) => [{ ...newRoom, isMember: true }, ...prev]);
       setIsModalOpen(false);
@@ -83,7 +75,7 @@ export default function Groups() {
 
   const joinGroup = async (id) => {
     try {
-      await axiosAuth.post(`/api/groups/${id}/join`);
+      await api.post(`/groups/${id}/join`);
       navigate(`/room/${id}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Join failed');

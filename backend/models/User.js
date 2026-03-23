@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema({
     planExpiresAt: Date,
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },
     passwordHash: String,
+    githubId: String,
+    githubAccessToken: String,
 }, { timestamps: true });
 
 // Check if model already exists before creating

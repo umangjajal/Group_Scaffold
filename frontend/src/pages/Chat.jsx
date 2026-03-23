@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import api from '../api';
+import { createSocketConnection } from '../socket';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-const WS_URL = import.meta.env.VITE_API_WS_URL || 'http://localhost:4000';
+import { buildBackendUrl } from '../network/config';
 
 export default function Chat() {
   const { groupId } = useParams();
@@ -19,9 +17,7 @@ export default function Chat() {
     // Fetch initial messages
     const fetchMessages = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/groups/${groupId}/messages`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
+        const res = await api.get(`/groups/${groupId}/messages`);
         setMessages(res.data.messages);
       } catch (error) {
         console.error('Failed to fetch messages:', error);
@@ -32,7 +28,7 @@ export default function Chat() {
 
   useEffect(() => {
     // Connect socket
-    socketRef.current = io(WS_URL, {
+    socketRef.current = createSocketConnection({
       auth: { token: accessToken }
     });
 
@@ -106,7 +102,7 @@ export default function Chat() {
               {m.text && <div>{m.text}</div>}
               {m.mediaUrl && (
                 <div>
-                  <img src={m.mediaUrl} alt="media" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                  <img src={buildBackendUrl(m.mediaUrl)} alt="media" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
                 </div>
               )}
               <div style={{ fontSize: '0.7em', color: '#999', marginTop: '4px' }}>

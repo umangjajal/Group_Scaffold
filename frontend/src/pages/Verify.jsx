@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function Verify() {
   const { user, saveAuth } = useAuth();
@@ -20,21 +18,16 @@ export default function Verify() {
     if (channel === 'phone') setValue(user?.phone || '');
   }, [channel, user]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
   const requestOtp = async () => {
     setError('');
     setMessage('');
     setIsLoading(true);
 
     try {
-      const response = await axios.post(
-        `${API_URL}/api/verify/send-otp`,
+      const response = await api.post(
+        '/verify/send-otp',
         { channel, value },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 30000 }
+        { timeout: 30000 }
       );
       setMessage(response.data.message || `OTP sent to your ${channel}`);
     } catch (err) {
@@ -61,10 +54,10 @@ export default function Verify() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(
-        `${API_URL}/api/verify/verify-otp`,
+      const response = await api.post(
+        '/verify/verify-otp',
         { channel, value, code },
-        { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, timeout: 30000 }
+        { timeout: 30000 }
       );
 
       if (response.data.user) {

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function AdminPanel() {
   const [users, setUsers] = useState([]);
@@ -22,11 +20,6 @@ export default function AdminPanel() {
 
   const navigate = useNavigate();
   const { user, accessToken, logout } = useAuth();
-
-  const axiosAuth = axios.create({
-    baseURL: API_URL,
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
 
   useEffect(() => {
     if (!user) {
@@ -53,7 +46,7 @@ export default function AdminPanel() {
 
   const fetchUsers = async () => {
     try {
-      const response = await axiosAuth.get('/api/admin/users');
+      const response = await api.get('/admin/users');
       setUsers(response.data);
       setError('');
     } catch (err) {
@@ -63,7 +56,7 @@ export default function AdminPanel() {
 
   const fetchStats = async () => {
     try {
-      const response = await axiosAuth.get('/api/admin/stats');
+      const response = await api.get('/admin/stats');
       setStats(response.data);
     } catch (_) {
       // No-op to keep panel running when stats endpoint is temporarily unavailable.
@@ -92,7 +85,7 @@ export default function AdminPanel() {
     try {
       setError('');
       for (const userId of selectedUsers) {
-        await axiosAuth.post(`/api/groups/${roomId}/members/${userId}`);
+        await api.post(`/groups/${roomId}/members/${userId}`);
       }
       setSuccess(`Added ${selectedUsers.length} member(s) to room.`);
       setSelectedUsers([]);

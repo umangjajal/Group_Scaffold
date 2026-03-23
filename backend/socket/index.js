@@ -7,7 +7,6 @@ const Plans = require('../models/Plan');
 const User = require('../models/User');
 const { createCorsOriginValidator } = require('../config/cors');
 const registerCollabSocket = require('./collab');
-const registerTerminalSocket = require('./terminal');
 
 // New models for calling features
 const CallQuota = require('../models/CallQuota');
@@ -167,7 +166,6 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
 
         // --- Group Chat Events (from previous implementation) ---
         registerCollabSocket(io, socket);
-        registerTerminalSocket(io, socket);
 
         socket.on('join', ({ groupId }) => {
             socket.join(`group:${groupId}`);
@@ -329,8 +327,9 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
 
                 io.to(`group:${groupId}`).emit('message:new', {
                     ...msg.toObject(),
+                    group: String(msg.group),
                     sender: {
-                        id: socket.user.id,
+                        _id: socket.user.id.toString(),
                         name: socket.user.name,
                         avatarUrl: socket.user.avatarUrl
                     }
@@ -475,6 +474,11 @@ module.exports = function attachSocket(httpServer, onlineUsers) {
         // WebRTC Signaling: ICE Candidate
         socket.on('call:candidate', ({ to, candidate, sessionId }) => {
             io.to(`user:${to}`).emit('call:candidate', { from: socket.user.id, candidate, sessionId });
+        });
+
+        // Track mic/camera state
+        socket.on('call:track-state', ({ sessionId, type, enabled }) => {
+            socket.to(`call:${sessionId}`).emit('call:track-state', { userId: socket.user.id, type, enabled });
         });
 
         // Client -> Server: Accept a call

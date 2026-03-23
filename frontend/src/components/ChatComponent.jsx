@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
+import { buildBackendUrl } from '../network/config';
 import { PaperAirplaneIcon, FaceSmileIcon, PaperClipIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -16,6 +17,16 @@ export default function ChatComponent({ groupId }) {
   const emojiPickerRef = useRef(null);
 
   useEffect(() => {
+    if (!groupId) return undefined;
+
+    socket.emit('join', { groupId });
+
+    return () => {
+      socket.emit('leave', { groupId });
+    };
+  }, [groupId]);
+
+  useEffect(() => {
     const fetchMessages = async () => {
       try {
         const { data } = await api.get(`/groups/${groupId}/messages`);
@@ -27,7 +38,8 @@ export default function ChatComponent({ groupId }) {
     fetchMessages();
 
     const onNewMessage = (msg) => {
-      if (msg.group === groupId || msg.group?._id === groupId) {
+      const messageGroupId = msg.group?._id || msg.group;
+      if (String(messageGroupId) === String(groupId)) {
         setMessages(prev => [...prev, msg]);
       }
     };
@@ -74,7 +86,7 @@ export default function ChatComponent({ groupId }) {
 
     setUploading(true);
     try {
-      const { data } = await api.post('/api/upload', formData, {
+      const { data } = await api.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
@@ -101,8 +113,9 @@ export default function ChatComponent({ groupId }) {
       
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((m, i) => {
-          const senderId = m.sender?._id || m.sender;
-          const isMe = senderId === user.id || senderId === user._id;
+          const senderId = m.sender?._id || m.sender?.id || m.sender;
+          const currentUserId = user?.id || user?._id;
+          const isMe = String(senderId) === String(currentUserId);
           return (
             <div key={m._id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <div className="flex items-center gap-2 mb-1">
@@ -114,7 +127,7 @@ export default function ChatComponent({ groupId }) {
               }`}>
                 {m.mediaUrl ? (
                   <a 
-                    href={`${api.defaults.baseURL || ''}${m.mediaUrl}`} 
+                    href={buildBackendUrl(m.mediaUrl)} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 underline decoration-blue-400"

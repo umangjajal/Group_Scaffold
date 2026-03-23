@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { io } from 'socket.io-client';
+import api from '../api';
+import { createSocketConnection } from '../socket';
 import { useAuth } from '../contexts/AuthContext';
+import realtimeLogo from '../assets/realtimeLogo';
 import { 
   VideoCameraIcon, 
   VideoCameraSlashIcon, 
@@ -19,8 +20,6 @@ import {
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import '../styles/room.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function RoomDashboard() {
   const { roomId } = useParams();
@@ -56,12 +55,6 @@ export default function RoomDashboard() {
   const [sidebarWidth, setSidebarWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
 
-  const token = localStorage.getItem('accessToken');
-  const axiosAuth = useMemo(() => axios.create({
-    baseURL: API_URL,
-    headers: { Authorization: `Bearer ${token}` },
-  }), [token]);
-
   useEffect(() => {
     bootstrapRoom();
     return () => {
@@ -88,15 +81,15 @@ export default function RoomDashboard() {
   async function bootstrapRoom() {
     try {
       setLoading(true);
-      const res = await axiosAuth.get(`/api/groups/${roomId}`);
+      const res = await api.get(`/groups/${roomId}`);
       setGroupName(res.data.name);
       
-      const membersRes = await axiosAuth.get(`/api/groups/${roomId}/members`);
+      const membersRes = await api.get(`/groups/${roomId}/members`);
       const groupMembers = Array.isArray(membersRes.data) ? membersRes.data : [];
       setMembers(groupMembers);
 
       if (!groupMembers.some(m => m.user?._id === user?.id)) {
-        await axiosAuth.post(`/api/groups/${roomId}/join`);
+        await api.post(`/groups/${roomId}/join`);
       }
 
       setIsMember(true);
@@ -122,7 +115,7 @@ export default function RoomDashboard() {
   }
 
   function initializeSocket() {
-    const socket = io(API_URL, { auth: { token: localStorage.getItem('accessToken') } });
+    const socket = createSocketConnection();
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -267,7 +260,7 @@ export default function RoomDashboard() {
         <header className="room-header">
            <div className="room-logo-box">
               <div className="room-logo-icon">
-                 <img src="/realtime-logo.svg" alt="Logo" className="w-5 h-5 invert" />
+                 <img src={realtimeLogo} alt="Logo" className="w-5 h-5 invert" />
               </div>
               <div className="room-title-area">
                 <h1>{groupName}</h1>
@@ -408,7 +401,7 @@ export default function RoomDashboard() {
                     <PlusIcon className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
                   {tasks.map(t => (
                     <div key={t.id} className="task-item group">
                       <button 
@@ -423,6 +416,7 @@ export default function RoomDashboard() {
                       </button>
                     </div>
                   ))}
+                  {tasks.length === 0 && <p className="text-[10px] text-gray-500 italic py-4 text-center">No active tasks</p>}
                 </div>
               </div>
 

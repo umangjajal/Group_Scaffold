@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { publicApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import realtimeLogo from '../assets/realtimeLogo';
+import { buildBackendUrl } from '../network/config';
+import {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  assertFirebaseConfigured,
+  getFirebaseAuthErrorMessage,
+} from '../firebase';
 
 export default function Login() {
   const { saveAuth } = useAuth();
@@ -19,7 +26,7 @@ export default function Login() {
     const token = params.get('token');
     const refresh = params.get('refresh');
     if (token) {
-      axios.get(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` }})
+      publicApi.get('/auth/me', { headers: { Authorization: `Bearer ${token}` }})
         .then(res => {
           saveAuth({ user: res.data, accessToken: token, refreshToken: refresh });
           navigate('/groups');
@@ -34,7 +41,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, {
+      const res = await publicApi.post('/auth/login', {
         identifier: identifier.trim(),
         password,
       });
@@ -49,11 +56,40 @@ export default function Login() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      assertFirebaseConfigured();
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      const res = await publicApi.post('/auth/firebase-verify', { idToken });
+
+      saveAuth(res.data);
+      navigate('/groups');
+    } catch (err) {
+      console.error("Google Auth Error:", err);
+      setError(getFirebaseAuthErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGithubLogin = () => {
+    let url = buildBackendUrl('/api/auth/github');
+    // If we are on localhost, tell the backend to redirect back to localhost
+    if (window.location.hostname === 'localhost') {
+      url += '?state=local';
+    }
+    window.location.href = url;
+  };
+
   return (
     <div className="auth-page">
       <div className="auth-frame">
         <div className="auth-brand">
-          <img src="/realtime-logo.svg" alt="Realtime Group logo" className="auth-brand__logo" />
+          <img src={realtimeLogo} alt="Realtime Group logo" className="auth-brand__logo" />
           <h1 className="auth-brand__title">Realtime Group</h1>
           <p className="auth-brand__subtitle">One login for engineers, product teams, and admins.</p>
         </div>
@@ -105,10 +141,10 @@ export default function Login() {
             </div>
 
             <div className="social-btns">
-               <button type="button" className="btn-social" onClick={() => window.location.href = `${API_URL}/api/auth/google`}>
+               <button type="button" className="btn-social" onClick={handleGoogleLogin} disabled={loading}>
                   Google
                </button>
-               <button type="button" className="btn-social" onClick={() => window.location.href = `${API_URL}/api/auth/github`}>
+               <button type="button" className="btn-social" onClick={handleGithubLogin}>
                   GitHub
                </button>
             </div>
