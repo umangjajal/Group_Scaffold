@@ -56,3 +56,11 @@ mongo-data/
 .chrome-headless/
 .chrome-clean/
 .chrome-debug/
+
+# Local Codex / MCP configuration
+.codex/config.toml
+.codex/mcp.json
+.mcp/config.json
+mcp.json
+mcp-config.json
+mcp-servers.json

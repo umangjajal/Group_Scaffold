@@ -110,10 +110,15 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 
   try {
-    const aiResponse = await chatWithGemini(prompt); 
+    const aiResponse = await chatWithGemini(prompt);
     res.json({ response: aiResponse });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get AI response' });
+    if (error.code === 'GEMINI_UNAVAILABLE') {
+      return res.status(503).json({ error: error.message });
+    }
+
+    console.error('Failed to get AI response:', error);
+    res.status(502).json({ error: 'Failed to get AI response' });
   }
 });
 
