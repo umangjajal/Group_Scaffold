@@ -171,27 +171,6 @@
   border-bottom: 1px solid #007acc;
 }
 
-.vscode-terminal-area {
-  height: 250px;
-  background: #1e1e1e;
-  border-top: 1px solid #333333;
-  display: flex;
-  flex-direction: column;
-  min-height: 150px;
-}
-
-.vscode-terminal-header {
-  height: 35px;
-  display: flex;
-  align-items: center;
-  padding: 0 15px;
-  text-transform: uppercase;
-  font-size: 11px;
-  color: #e7e7e7;
-  border-bottom: 1px solid #333333;
-  background: #1e1e1e;
-}
-
 .vscode-file-item {
   display: flex;
   align-items: center;
@@ -279,10 +258,3 @@
   background: #2d2d2d;
 }
 
-/* XTerm adjustments */
-.xterm-viewport::-webkit-scrollbar {
-  width: 10px;
-}
-.xterm-viewport::-webkit-scrollbar-thumb {
-  background: #454545;
-}

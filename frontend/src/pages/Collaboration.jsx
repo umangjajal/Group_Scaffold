@@ -8,7 +8,6 @@ import {
   DocumentIcon, 
   ChevronRightIcon, 
   ChevronDownIcon, 
-  PlayIcon, 
   CloudArrowDownIcon, 
   ArrowPathIcon, 
   TrashIcon, 
@@ -17,37 +16,12 @@ import {
   ChatBubbleLeftRightIcon,
   UsersIcon,
   XMarkIcon,
-  CommandLineIcon,
   Square2StackIcon,
-  MagnifyingGlassIcon,
   QueueListIcon
 } from '@heroicons/react/24/outline';
 import ChatComponent from '../components/ChatComponent';
 import MemberListComponent from '../components/MemberListComponent';
 import '../styles/vscode.css';
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      if (existing.dataset.loaded === 'true') return resolve();
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.dataset.loaded = 'false';
-    script.onload = () => {
-      script.dataset.loaded = 'true';
-      resolve();
-    };
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(script);
-  });
-}
 
 const SourceControlView = ({ groupId, onOpenDiff }) => {
     const [status, setStatus] = useState([]);
@@ -244,9 +218,6 @@ export default function Collaboration() {
   const [userRepos, setUserRepos] = useState([]);
   const [fetchingRepos, setFetchingRepos] = useState(false);
 
-  const terminalRef = useRef(null);
-  const xtermRef = useRef(null);
-  const fitAddonRef = useRef(null);
   const editorRef = useRef(null);
 
   useEffect(() => {
@@ -271,55 +242,6 @@ export default function Collaboration() {
       socket.off('collab:file:patched', onPatched);
     };
   }, [selectedFileId, groupId]);
-
-  useEffect(() => {
-    async function initTerm() {
-      if (!terminalRef.current || xtermRef.current) return;
-      try {
-        await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js');
-        await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
-        const styleId = 'xterm-css-cdn';
-        if (!document.getElementById(styleId)) {
-          const link = document.createElement('link');
-          link.id = styleId;
-          link.rel = 'stylesheet';
-          link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css';
-          document.head.appendChild(link);
-        }
-
-        const TerminalClass = window.Terminal;
-        const FitAddonClass = window.FitAddon?.FitAddon;
-        if (!TerminalClass || !FitAddonClass) return;
-
-        const term = new TerminalClass({ cursorBlink: true, fontSize: 13, theme: { background: '#1e1e1e' } });
-        const fitAddon = new FitAddonClass();
-        term.loadAddon(fitAddon);
-        term.open(terminalRef.current);
-        fitAddon.fit();
-        term.onData((data) => socket.emit('terminal:input', { data }));
-        xtermRef.current = term;
-        fitAddonRef.current = fitAddon;
-        socket.emit('terminal:start', { cols: term.cols, rows: term.rows, groupId });
-      } catch (e) { setError(e.message); }
-    }
-    initTerm();
-
-    const onTerminalData = (data) => xtermRef.current?.write(data);
-    const onTerminalReady = () => {
-        fitAddonRef.current?.fit();
-        if(xtermRef.current) socket.emit('terminal:resize', { cols: xtermRef.current.cols, rows: xtermRef.current.rows });
-    };
-
-    socket.on('terminal:data', onTerminalData);
-    socket.on('terminal:ready', onTerminalReady);
-
-    return () => {
-      socket.off('terminal:data', onTerminalData);
-      socket.off('terminal:ready', onTerminalReady);
-      socket.emit('terminal:stop');
-      if (xtermRef.current) xtermRef.current.dispose();
-    };
-  }, [groupId]);
 
   const fetchRepos = async () => {
     setFetchingRepos(true);
@@ -506,14 +428,6 @@ export default function Collaboration() {
                 }}>Full Screen</div>
             </div>
           </div>
-          <div className="vscode-menubar-item">
-            Run
-            <div className="vscode-dropdown">
-                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm start\r' })}>Run Debugging</div>
-                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm test\r' })}>Run Tests</div>
-                <div className="vscode-dropdown-item" onClick={() => socket.emit('terminal:input', { data: 'npm run build\r' })}>Build Project</div>
-            </div>
-          </div>
           <div className="flex-1" />
           {error && <div className="text-xs mr-4 px-2 py-1 rounded bg-blue-900/30 text-blue-300 animate-pulse">{error}</div>}
       </nav>
@@ -638,10 +552,6 @@ export default function Collaboration() {
             </div>
           </div>
 
-          <div className="vscode-terminal-area">
-            <div className="vscode-terminal-header">TERMINAL</div>
-            <div ref={terminalRef} className="flex-1 p-1 overflow-hidden" />
-          </div>
         </main>
 
         {/* Right Sidebar (Chat & Members) */}

@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import AppNavbar from '../components/AppNavbar';
 import realtimeLogo from '../assets/realtimeLogo';
 import { 
-  CommandLineIcon, 
   VideoCameraIcon, 
   CodeBracketIcon,
   CpuChipIcon,
@@ -47,7 +46,7 @@ export default function Home() {
           </h1>
 
           <p className="text-xl md:text-2xl text-slate-500 max-w-3xl leading-relaxed font-medium mt-4">
-            Combine synchronous video, real-time code collaboration, and instant terminal access in a single, beautiful interface. Stop context switching.
+            Combine synchronous video and real-time code collaboration in a single, beautiful interface. Stop context switching.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-8">
@@ -85,7 +84,6 @@ export default function Home() {
                <div className="hidden md:flex flex-col border-r border-slate-800 bg-[#161b22] p-4 text-slate-400 font-mono text-sm space-y-2">
                  <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Explorer</div>
                  <div className="flex items-center gap-2 text-indigo-400"><CodeBracketIcon className="w-4 h-4" /> index.js</div>
-                 <div className="flex items-center gap-2 hover:text-slate-200"><CommandLineIcon className="w-4 h-4" /> terminal.sh</div>
                  <div className="flex items-center gap-2 hover:text-slate-200"><VideoCameraIcon className="w-4 h-4" /> room.rtc</div>
                </div>
                {/* Editor mock */}
@@ -138,21 +136,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Small Card 1 */}
-            <div className="relative overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 p-8 shadow-sm hover:shadow-xl transition-shadow text-white group">
-              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <CommandLineIcon className="w-32 h-32 text-emerald-400" />
-              </div>
-              <div className="relative z-10 h-full flex flex-col justify-end">
-                <div className="w-12 h-12 bg-slate-800 text-emerald-400 rounded-2xl flex items-center justify-center mb-6 border border-slate-700">
-                  <CommandLineIcon className="w-6 h-6" />
-                </div>
-                <h3 className="text-2xl font-bold mb-2">Native Terminal</h3>
-                <p className="text-slate-400 font-medium">Full bash access. Run npm, git, and python exactly like your local machine.</p>
-              </div>
-            </div>
-
-            {/* Small Card 2 */}
             <div className="relative overflow-hidden rounded-3xl bg-indigo-50 border border-indigo-100 p-8 shadow-sm hover:shadow-xl transition-shadow group">
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                 <CpuChipIcon className="w-32 h-32 text-indigo-600" />
@@ -176,7 +159,7 @@ export default function Home() {
                   <CodeBracketIcon className="w-6 h-6" />
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900 mb-2">Git Integration</h3>
-                <p className="text-slate-500 font-medium max-w-md">Import repositories directly from GitHub. Edit code collaboratively, test it in the terminal, and push changes back instantly.</p>
+                <p className="text-slate-500 font-medium max-w-md">Import repositories directly from GitHub, edit code collaboratively, and push changes back instantly.</p>
               </div>
             </div>
 
