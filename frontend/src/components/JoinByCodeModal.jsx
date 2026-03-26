@@ -34,14 +34,27 @@ export default function JoinByCodeModal({ isOpen, onClose, onSuccess }) {
   return (
     <div className="modal-overlay bg-black/40 backdrop-blur-sm">
       <div className="modal-card bg-white border border-gray-100 rounded-2xl shadow-2xl p-8 font-sans max-w-md w-full mx-4">
-        <h2 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">Join Private Room</h2>
-        <p className="text-sm text-gray-500 mb-8 font-medium">Paste a valid room access code to join instantly.</p>
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">
+          Join Private Room
+        </h2>
+        <p className="text-sm text-gray-500 mb-8 font-medium">
+          Paste a valid room access code to join instantly.
+        </p>
 
-        {error && <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-lg mb-6 animate-shake">{error}</div>}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-lg mb-6 animate-shake">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleJoinByCode} className="flex flex-col gap-6">
           <div className="group">
-            <label className="text-[11px] uppercase font-bold text-gray-400 tracking-widest mb-2 block group-focus-within:text-[#007acc] transition-colors" htmlFor="roomCode">6-digit Room Code</label>
+            <label
+              className="text-[11px] uppercase font-bold text-gray-400 tracking-widest mb-2 block group-focus-within:text-[#007acc] transition-colors"
+              htmlFor="roomCode"
+            >
+              6-digit Room Code
+            </label>
             <input
               id="roomCode"
               type="text"

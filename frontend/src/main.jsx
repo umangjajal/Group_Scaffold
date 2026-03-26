@@ -28,7 +28,9 @@ class AppErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 16, fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#991b1b' }}>
+        <div
+          style={{ padding: 16, fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#991b1b' }}
+        >
           {`Frontend error: ${this.state.error.message}`}
         </div>
       );
@@ -45,5 +47,5 @@ root.render(
     <BrowserRouter>
       <App />
     </BrowserRouter>
-  </AppErrorBoundary>
+  </AppErrorBoundary>,
 );

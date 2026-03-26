@@ -131,10 +131,9 @@
     top: 35px;
     bottom: 0;
     z-index: 50;
-    box-shadow: -10px 0 20px rgba(0,0,0,0.5);
+    box-shadow: -10px 0 20px rgba(0, 0, 0, 0.5);
   }
 }
-
 
 .vscode-editor-area {
   flex: 1;
@@ -257,4 +256,3 @@
 .btn--ghost:hover {
   background: #2d2d2d;
 }
-

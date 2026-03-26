@@ -1,15 +1,15 @@
-const API_ORIGIN = String(import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-const SOCKET_ORIGIN = String(import.meta.env.VITE_API_WS_URL || "").replace(/\/+$/, "");
+const API_ORIGIN = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const SOCKET_ORIGIN = String(import.meta.env.VITE_API_WS_URL || '').replace(/\/+$/, '');
 
-function normalizePath(path = "/") {
+function normalizePath(path = '/') {
   if (!path) {
-    return "/";
+    return '/';
   }
 
-  return path.startsWith("/") ? path : `/${path}`;
+  return path.startsWith('/') ? path : `/${path}`;
 }
 
-export function buildBackendUrl(path = "/") {
+export function buildBackendUrl(path = '/') {
   if (/^(https?|wss?):\/\//i.test(path)) {
     return path;
   }
@@ -19,7 +19,7 @@ export function buildBackendUrl(path = "/") {
 }
 
 export function getApiBaseUrl() {
-  return buildBackendUrl("/api");
+  return buildBackendUrl('/api');
 }
 
 export function getSocketUrl() {
@@ -27,17 +27,17 @@ export function getSocketUrl() {
 }
 
 export function getAccessToken() {
-  return localStorage.getItem("accessToken") || "";
+  return localStorage.getItem('accessToken') || '';
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem("refreshToken") || "";
+  return localStorage.getItem('refreshToken') || '';
 }
 
 export function clearStoredAuth() {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-  localStorage.removeItem("user");
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
 }
 
 export function getAuthHeaders() {

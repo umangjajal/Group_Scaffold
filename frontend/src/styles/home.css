@@ -14,7 +14,7 @@
 }
 
 .home-hero::before {
-  content: '';
+  content: "";
   position: absolute;
   width: 40rem;
   height: 40rem;

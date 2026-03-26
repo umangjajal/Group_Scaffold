@@ -6,31 +6,30 @@ export interface AppError extends Error {
   details?: unknown;
 }
 
-export const errorHandler = (
-  err: AppError,
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const errorHandler = (err: AppError, req: Request, res: Response, next: NextFunction) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
 
-  logger.error({
-    err,
-    req: {
-      method: req.method,
-      url: req.url,
-      body: req.body,
-      params: req.params,
-      query: req.query,
+  logger.error(
+    {
+      err,
+      req: {
+        method: req.method,
+        url: req.url,
+        body: req.body,
+        params: req.params,
+        query: req.query,
+      },
     },
-  }, message);
+    message,
+  );
 
   res.status(statusCode).json({
     status: 'error',
-    message: process.env.NODE_ENV === 'production' && statusCode === 500
-      ? 'Something went wrong'
-      : message,
+    message:
+      process.env.NODE_ENV === 'production' && statusCode === 500
+        ? 'Something went wrong'
+        : message,
     details: err.details || undefined,
   });
 };

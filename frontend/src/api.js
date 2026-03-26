@@ -1,1 +1,1 @@
-export { default, publicApi } from "./network/apiClient";
+export { default, publicApi } from './network/apiClient';

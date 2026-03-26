@@ -1,18 +1,18 @@
 import 'dotenv/config';
-import express from 'express';
 import fs from 'fs';
 import http from 'http';
-import cors from 'cors';
-import mongoose from 'mongoose';
 import path from 'path';
-import helmet from 'helmet';
+import cors from 'cors';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import mongoose from 'mongoose';
 import pinoHttp from 'pino-http';
-import logger from './utils/logger';
-import { attachSocket } from './socket';
 import { createCorsOriginValidator } from './config/cors';
 import { errorHandler } from './middleware/errorHandler';
+import { attachSocket } from './socket';
 import type { OnlineUser } from './types/socket.types';
+import logger from './utils/logger';
 
 // Import routes
 // Note: These will need to be converted to TS as well, but for now we'll import as we migrate.
@@ -46,16 +46,19 @@ app.use(limiter);
 app.use(express.json({ limit: '5mb' }));
 
 // CORS config
-app.use(cors({
-  origin: createCorsOriginValidator(),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+app.use(
+  cors({
+    origin: createCorsOriginValidator(),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  }),
+);
 
 // ---------------------------------
 // # DATABASE CONNECTION
 // ---------------------------------
-mongoose.connect(process.env.MONGO_URL as string)
+mongoose
+  .connect(process.env.MONGO_URL as string)
   .then(() => logger.info('✅ MongoDB connected successfully.'))
   .catch((err) => {
     logger.error('❌ MongoDB connection error:', err);
@@ -75,7 +78,7 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-const onlineUsers = new Map<string, OnlineUser>();
+const onlineUsers = new Map<string, any>();
 
 attachSocket(server, onlineUsers);
 

@@ -8,7 +8,7 @@
   --room-text-muted: #64748b;
   --room-accent: #2563eb;
   --room-card-bg: #ffffff;
-  
+
   height: 100vh;
   display: flex;
   background-color: var(--room-bg);
@@ -131,7 +131,7 @@
 
 .video-card {
   position: relative;
-  aspect-ratio: 16/9;
+  aspect-ratio: 16 / 9;
   background: var(--room-card-bg);
   border-radius: 1.25rem;
   overflow: hidden;

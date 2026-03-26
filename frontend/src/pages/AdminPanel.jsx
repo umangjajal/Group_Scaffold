@@ -67,7 +67,7 @@ export default function AdminPanel() {
 
   const toggleUserSelection = (userId) => {
     setSelectedUsers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
     );
   };
 
@@ -120,17 +120,30 @@ export default function AdminPanel() {
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <StatCard label="Total Users" value={stats.totalUsers || 0} />
-          <StatCard label="Online" value={stats.onlineUsers || 0} borderClass="border-emerald-400/30" valueClass="text-emerald-400" />
-          <StatCard label="Offline" value={stats.offlineUsers || 0} borderClass="border-slate-500/40" />
+          <StatCard
+            label="Online"
+            value={stats.onlineUsers || 0}
+            borderClass="border-emerald-400/30"
+            valueClass="text-emerald-400"
+          />
+          <StatCard
+            label="Offline"
+            value={stats.offlineUsers || 0}
+            borderClass="border-slate-500/40"
+          />
           <StatCard label="Groups" value={stats.totalGroups || 0} />
           <StatCard label="Messages" value={stats.totalMessages || 0} />
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200">{error}</div>
+          <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200">
+            {error}
+          </div>
         )}
         {success && (
-          <div className="mb-6 p-4 bg-emerald-900/30 border border-emerald-500/50 rounded-lg text-emerald-200">{success}</div>
+          <div className="mb-6 p-4 bg-emerald-900/30 border border-emerald-500/50 rounded-lg text-emerald-200">
+            {success}
+          </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -146,7 +159,10 @@ export default function AdminPanel() {
             ) : (
               <div className="divide-y divide-slate-700 max-h-96 overflow-y-auto">
                 {users.map((account) => (
-                  <div key={account._id} className="flex items-center gap-4 p-4 hover:bg-slate-800/60 transition-colors">
+                  <div
+                    key={account._id}
+                    className="flex items-center gap-4 p-4 hover:bg-slate-800/60 transition-colors"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedUsers.includes(account._id)}
@@ -155,11 +171,17 @@ export default function AdminPanel() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-white truncate">{account.name}</div>
-                      <div className="text-sm text-slate-400 truncate">{account.email || account.phone || 'No contact set'}</div>
+                      <div className="text-sm text-slate-400 truncate">
+                        {account.email || account.phone || 'No contact set'}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${account.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                      <span className="text-sm text-slate-300">{account.isOnline ? 'Online' : 'Offline'}</span>
+                      <div
+                        className={`w-3 h-3 rounded-full ${account.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}
+                      />
+                      <span className="text-sm text-slate-300">
+                        {account.isOnline ? 'Online' : 'Offline'}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -183,7 +205,9 @@ export default function AdminPanel() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Selected Users</label>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Selected Users
+                </label>
                 <div className="bg-slate-800/60 rounded-lg p-3 min-h-20 max-h-40 overflow-y-auto border border-slate-700">
                   {selectedUsers.length === 0 ? (
                     <p className="text-sm text-slate-500 text-center py-4">No users selected</p>
@@ -192,9 +216,17 @@ export default function AdminPanel() {
                       {selectedUsers.map((id) => {
                         const selected = users.find((u) => u._id === id);
                         return (
-                          <div key={id} className="flex items-center justify-between bg-slate-700 rounded px-3 py-2 text-sm">
-                            <span className="font-medium text-white truncate">{selected?.name || id}</span>
-                            <button onClick={() => toggleUserSelection(id)} className="text-red-400 hover:text-red-300 font-bold">
+                          <div
+                            key={id}
+                            className="flex items-center justify-between bg-slate-700 rounded px-3 py-2 text-sm"
+                          >
+                            <span className="font-medium text-white truncate">
+                              {selected?.name || id}
+                            </span>
+                            <button
+                              onClick={() => toggleUserSelection(id)}
+                              className="text-red-400 hover:text-red-300 font-bold"
+                            >
                               x
                             </button>
                           </div>

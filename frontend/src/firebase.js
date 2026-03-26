@@ -37,7 +37,7 @@ function assertFirebaseConfigured() {
   }
 
   throw new Error(
-    `Firebase web config is incomplete. Missing: ${missingFirebaseConfig.join(', ')}.`
+    `Firebase web config is incomplete. Missing: ${missingFirebaseConfig.join(', ')}.`,
   );
 }
 

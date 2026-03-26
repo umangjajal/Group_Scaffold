@@ -74,7 +74,7 @@ export default function Signup() {
       saveAuth(res.data);
       navigate('/groups');
     } catch (err) {
-      console.error("Google Auth Error:", err);
+      console.error('Google Auth Error:', err);
       setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
@@ -87,18 +87,24 @@ export default function Signup() {
         <div className="auth-brand">
           <img src={realtimeLogo} alt="Realtime Group logo" className="auth-brand__logo" />
           <h1 className="auth-brand__title">Create your workspace account</h1>
-          <p className="auth-brand__subtitle">Provision access for chat, meetings, and code collaboration.</p>
+          <p className="auth-brand__subtitle">
+            Provision access for chat, meetings, and code collaboration.
+          </p>
         </div>
 
         <section className="auth-card" aria-label="Sign up form">
           <h2 className="auth-card__heading">Sign up</h2>
-          <p className="auth-card__subheading">Start with a standard account and scale with your team.</p>
+          <p className="auth-card__subheading">
+            Start with a standard account and scale with your team.
+          </p>
 
           {error && <div className="auth-error">{error}</div>}
 
           <form onSubmit={handleSubmit} className="auth-form">
             <div>
-              <label className="auth-label" htmlFor="name">Full name</label>
+              <label className="auth-label" htmlFor="name">
+                Full name
+              </label>
               <input
                 id="name"
                 type="text"
@@ -111,7 +117,9 @@ export default function Signup() {
             </div>
 
             <div>
-              <label className="auth-label" htmlFor="email">Email (optional)</label>
+              <label className="auth-label" htmlFor="email">
+                Email (optional)
+              </label>
               <input
                 id="email"
                 type="email"
@@ -123,7 +131,9 @@ export default function Signup() {
             </div>
 
             <div>
-              <label className="auth-label" htmlFor="phone">Phone (optional)</label>
+              <label className="auth-label" htmlFor="phone">
+                Phone (optional)
+              </label>
               <input
                 id="phone"
                 type="tel"
@@ -135,7 +145,9 @@ export default function Signup() {
             </div>
 
             <div>
-              <label className="auth-label" htmlFor="password">Password</label>
+              <label className="auth-label" htmlFor="password">
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
@@ -148,7 +160,9 @@ export default function Signup() {
             </div>
 
             <div>
-              <label className="auth-label" htmlFor="confirmPassword">Confirm password</label>
+              <label className="auth-label" htmlFor="confirmPassword">
+                Confirm password
+              </label>
               <input
                 id="confirmPassword"
                 type="password"
@@ -169,12 +183,21 @@ export default function Signup() {
             </div>
 
             <div className="social-btns">
-               <button type="button" className="btn-social" onClick={handleGoogleLogin} disabled={loading}>
-                  Google
-               </button>
-               <button type="button" className="btn-social" onClick={() => window.location.href = buildBackendUrl('/api/auth/github')}>
-                  GitHub
-               </button>
+              <button
+                type="button"
+                className="btn-social"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                Google
+              </button>
+              <button
+                type="button"
+                className="btn-social"
+                onClick={() => (window.location.href = buildBackendUrl('/api/auth/github'))}
+              >
+                GitHub
+              </button>
             </div>
           </form>
 

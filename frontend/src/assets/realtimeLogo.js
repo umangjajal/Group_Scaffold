@@ -18,6 +18,6 @@ const realtimeLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="
   <circle cx="126" cy="117" r="8" fill="#0b1f3a"/>
   <circle cx="159" cy="117" r="8" fill="#0b1f3a"/>
   <path d="M86 196c18-15 33-23 42-23 8 0 21 7 39 21" fill="none" stroke="url(#accent)" stroke-width="9" stroke-linecap="round"/>
-</svg>`)}`
+</svg>`)}`;
 
 export default realtimeLogo;

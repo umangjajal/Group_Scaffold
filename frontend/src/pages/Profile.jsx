@@ -41,7 +41,8 @@ export default function Profile() {
   };
 
   const currentPreset = AVATAR_PRESETS[gender] || AVATAR_PRESETS.other;
-  const previewAvatar = avatarUrl || currentPreset[0] || 'https://via.placeholder.com/140?text=Avatar';
+  const previewAvatar =
+    avatarUrl || currentPreset[0] || 'https://via.placeholder.com/140?text=Avatar';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
@@ -56,21 +57,45 @@ export default function Profile() {
           <h2 className="text-center mt-4 text-2xl font-bold">{name || 'User'}</h2>
           <p className="text-center text-indigo-200">{user?.email || 'No email'}</p>
           <div className="mt-6 space-y-2 text-sm">
-            <div>🏷️ Role: <span className="font-semibold">{user?.role || 'user'}</span></div>
-            <div>💎 Plan: <span className="font-semibold uppercase">{user?.plan || 'free'}</span></div>
-            <div>🧬 Gender: <span className="font-semibold capitalize">{gender}</span></div>
-            <div>📅 Joined: <span className="font-semibold">{joinedOn}</span></div>
-            <div>✅ Email Verified: <span className="font-semibold">{user?.emailVerified ? 'Yes' : 'No'}</span></div>
-            <div>📱 Phone Verified: <span className="font-semibold">{user?.phoneVerified ? 'Yes' : 'No'}</span></div>
-            <div>🛡️ Status: <span className="font-semibold capitalize">{user?.status || 'active'}</span></div>
+            <div>
+              🏷️ Role: <span className="font-semibold">{user?.role || 'user'}</span>
+            </div>
+            <div>
+              💎 Plan: <span className="font-semibold uppercase">{user?.plan || 'free'}</span>
+            </div>
+            <div>
+              🧬 Gender: <span className="font-semibold capitalize">{gender}</span>
+            </div>
+            <div>
+              📅 Joined: <span className="font-semibold">{joinedOn}</span>
+            </div>
+            <div>
+              ✅ Email Verified:{' '}
+              <span className="font-semibold">{user?.emailVerified ? 'Yes' : 'No'}</span>
+            </div>
+            <div>
+              📱 Phone Verified:{' '}
+              <span className="font-semibold">{user?.phoneVerified ? 'Yes' : 'No'}</span>
+            </div>
+            <div>
+              🛡️ Status: <span className="font-semibold capitalize">{user?.status || 'active'}</span>
+            </div>
           </div>
         </div>
 
         <div className="md:col-span-2 bg-white rounded-2xl shadow-2xl p-8">
           <h3 className="text-2xl font-bold text-slate-900 mb-6">Edit Profile</h3>
 
-          {message && <div className="mb-4 p-3 rounded-lg bg-green-50 text-green-700 border border-green-200">{message}</div>}
-          {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">{error}</div>}
+          {message && (
+            <div className="mb-4 p-3 rounded-lg bg-green-50 text-green-700 border border-green-200">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
+              {error}
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
@@ -102,7 +127,9 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="block text-sm text-slate-700 font-medium mb-2">Choose an Avatar</label>
+              <label className="block text-sm text-slate-700 font-medium mb-2">
+                Choose an Avatar
+              </label>
               <div className="grid grid-cols-4 gap-3">
                 {currentPreset.map((avatar) => (
                   <button
@@ -129,7 +156,9 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="block text-sm text-slate-700 font-medium mb-1">Avatar URL (Optional)</label>
+              <label className="block text-sm text-slate-700 font-medium mb-1">
+                Avatar URL (Optional)
+              </label>
               <input
                 value={avatarUrl}
                 onChange={(e) => setAvatarUrl(e.target.value)}

@@ -1,7 +1,8 @@
 import mongoose, { Schema, Model } from 'mongoose';
 import { IUserDocument } from '../types/user.types';
 
-const userSchema = new Schema<IUserDocument>({
+const userSchema = new Schema<IUserDocument>(
+  {
     email: { type: String, unique: true, sparse: true },
     phone: { type: String, unique: true, sparse: true },
     emailVerified: { type: Boolean, default: false },
@@ -17,8 +18,11 @@ const userSchema = new Schema<IUserDocument>({
     passwordHash: String,
     githubId: String,
     githubAccessToken: String,
-}, { timestamps: true });
+  },
+  { timestamps: true },
+);
 
-const User: Model<IUserDocument> = mongoose.models.User || mongoose.model<IUserDocument>('User', userSchema);
+const User: Model<IUserDocument> =
+  mongoose.models.User || mongoose.model<IUserDocument>('User', userSchema);
 
 export default User;

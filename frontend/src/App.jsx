@@ -34,14 +34,70 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify" element={<PrivateRoute><Verify /></PrivateRoute>} />
-        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-        <Route path="/groups" element={<PrivateRoute><Groups /></PrivateRoute>} />
-        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
-        <Route path="/room/:roomId" element={<PrivateRoute><RoomDashboard /></PrivateRoute>} />
-        <Route path="/groups/:groupId/collab" element={<PrivateRoute><Collaboration /></PrivateRoute>} />
-        <Route path="/groups/:groupId/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
-        <Route path="/call/:sessionId" element={<PrivateRoute><Call /></PrivateRoute>} />
+        <Route
+          path="/verify"
+          element={
+            <PrivateRoute>
+              <Verify />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            <PrivateRoute>
+              <Groups />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/room/:roomId"
+          element={
+            <PrivateRoute>
+              <RoomDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/groups/:groupId/collab"
+          element={
+            <PrivateRoute>
+              <Collaboration />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/groups/:groupId/chat"
+          element={
+            <PrivateRoute>
+              <Chat />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/call/:sessionId"
+          element={
+            <PrivateRoute>
+              <Call />
+            </PrivateRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </AuthProvider>

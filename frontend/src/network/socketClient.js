@@ -1,5 +1,5 @@
-import { io } from "socket.io-client";
-import { getAccessToken, getSocketUrl } from "./config";
+import { io } from 'socket.io-client';
+import { getAccessToken, getSocketUrl } from './config';
 
 function buildSocketOptions(overrides = {}) {
   return {
@@ -18,10 +18,7 @@ function connectWithTarget(target, options) {
 
 const socketTarget = getSocketUrl();
 
-export const socket = connectWithTarget(
-  socketTarget,
-  buildSocketOptions({ autoConnect: false })
-);
+export const socket = connectWithTarget(socketTarget, buildSocketOptions({ autoConnect: false }));
 
 export function createSocketConnection(overrides = {}) {
   return connectWithTarget(socketTarget, buildSocketOptions(overrides));
@@ -34,8 +31,8 @@ export function connectSocket() {
     socket.connect();
   }
 
-  socket.off("connect_error");
-  socket.on("connect_error", (err) => {
-    console.error("socket connect_error", err.message);
+  socket.off('connect_error');
+  socket.on('connect_error', (err) => {
+    console.error('socket connect_error', err.message);
   });
 }

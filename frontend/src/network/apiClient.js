@@ -1,10 +1,5 @@
-import axios from "axios";
-import {
-  clearStoredAuth,
-  getAccessToken,
-  getApiBaseUrl,
-  getRefreshToken,
-} from "./config";
+import axios from 'axios';
+import { clearStoredAuth, getAccessToken, getApiBaseUrl, getRefreshToken } from './config';
 
 export const publicApi = axios.create({
   baseURL: getApiBaseUrl(),
@@ -29,24 +24,29 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    const isRefreshRequest = originalRequest?.url?.includes("/auth/refresh");
+    const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isRefreshRequest
+    ) {
       originalRequest._retry = true;
 
       try {
         const refreshToken = getRefreshToken();
         if (!refreshToken) {
-          throw new Error("No refresh token");
+          throw new Error('No refresh token');
         }
 
-        const refreshResponse = await publicApi.post("/auth/refresh", { token: refreshToken });
+        const refreshResponse = await publicApi.post('/auth/refresh', { token: refreshToken });
         const newAccessToken = refreshResponse.data.accessToken;
         const newRefreshToken = refreshResponse.data.refreshToken;
 
-        localStorage.setItem("accessToken", newAccessToken);
+        localStorage.setItem('accessToken', newAccessToken);
         if (newRefreshToken) {
-          localStorage.setItem("refreshToken", newRefreshToken);
+          localStorage.setItem('refreshToken', newRefreshToken);
         }
 
         api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
@@ -56,12 +56,12 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         clearStoredAuth();
-        window.location.href = "/login";
+        window.location.href = '/login';
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

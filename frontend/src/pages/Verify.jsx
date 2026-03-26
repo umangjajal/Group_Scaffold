@@ -24,18 +24,15 @@ export default function Verify() {
     setIsLoading(true);
 
     try {
-      const response = await api.post(
-        '/verify/send-otp',
-        { channel, value },
-        { timeout: 30000 }
-      );
+      const response = await api.post('/verify/send-otp', { channel, value }, { timeout: 30000 });
       setMessage(response.data.message || `OTP sent to your ${channel}`);
     } catch (err) {
       let errorMsg = 'Failed to send OTP. Please try again.';
       if (err.response) {
         errorMsg = err.response.data?.error || errorMsg;
       } else if (err.code === 'ECONNABORTED') {
-        errorMsg = 'OTP request timed out. Check Render env EMAIL_USER and EMAIL_APP_PASSWORD, then redeploy backend.';
+        errorMsg =
+          'OTP request timed out. Check Render env EMAIL_USER and EMAIL_APP_PASSWORD, then redeploy backend.';
       } else if (err.request) {
         errorMsg = 'Server not responding. Check API URL / backend deployment.';
       } else {
@@ -57,7 +54,7 @@ export default function Verify() {
       const response = await api.post(
         '/verify/verify-otp',
         { channel, value, code },
-        { timeout: 30000 }
+        { timeout: 30000 },
       );
 
       if (response.data.user) {

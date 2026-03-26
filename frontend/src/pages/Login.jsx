@@ -26,8 +26,9 @@ export default function Login() {
     const token = params.get('token');
     const refresh = params.get('refresh');
     if (token) {
-      publicApi.get('/auth/me', { headers: { Authorization: `Bearer ${token}` }})
-        .then(res => {
+      publicApi
+        .get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
           saveAuth({ user: res.data, accessToken: token, refreshToken: refresh });
           navigate('/groups');
         })
@@ -69,7 +70,7 @@ export default function Login() {
       saveAuth(res.data);
       navigate('/groups');
     } catch (err) {
-      console.error("Google Auth Error:", err);
+      console.error('Google Auth Error:', err);
       setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
@@ -91,7 +92,9 @@ export default function Login() {
         <div className="auth-brand">
           <img src={realtimeLogo} alt="Realtime Group logo" className="auth-brand__logo" />
           <h1 className="auth-brand__title">Realtime Group</h1>
-          <p className="auth-brand__subtitle">One login for engineers, product teams, and admins.</p>
+          <p className="auth-brand__subtitle">
+            One login for engineers, product teams, and admins.
+          </p>
         </div>
 
         <section className="auth-card" aria-label="Sign in form">
@@ -102,7 +105,9 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="auth-form">
             <div>
-              <label className="auth-label" htmlFor="identifier">Email or phone</label>
+              <label className="auth-label" htmlFor="identifier">
+                Email or phone
+              </label>
               <input
                 id="identifier"
                 type="text"
@@ -115,7 +120,9 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="auth-label" htmlFor="password">Password</label>
+              <label className="auth-label" htmlFor="password">
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
@@ -129,24 +136,31 @@ export default function Login() {
 
             <div className="auth-row">
               <span />
-              <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
+              <Link to="/forgot-password" className="auth-link">
+                Forgot password?
+              </Link>
             </div>
 
             <button type="submit" disabled={loading} className="btn btn--primary auth-submit">
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
-            
+
             <div className="auth-divider">
               <span>OR CONTINUE WITH</span>
             </div>
 
             <div className="social-btns">
-               <button type="button" className="btn-social" onClick={handleGoogleLogin} disabled={loading}>
-                  Google
-               </button>
-               <button type="button" className="btn-social" onClick={handleGithubLogin}>
-                  GitHub
-               </button>
+              <button
+                type="button"
+                className="btn-social"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
+                Google
+              </button>
+              <button type="button" className="btn-social" onClick={handleGithubLogin}>
+                GitHub
+              </button>
             </div>
           </form>
 

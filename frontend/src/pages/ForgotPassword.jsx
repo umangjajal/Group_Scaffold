@@ -60,15 +60,33 @@ export default function ForgotPassword() {
 
         <section className="auth-card glass-panel" aria-label="Forgot password form">
           <h2 className="auth-card__heading">Forgot Password</h2>
-          <p className="auth-card__subheading">We will send an OTP to your registered email address.</p>
+          <p className="auth-card__subheading">
+            We will send an OTP to your registered email address.
+          </p>
 
-          {message && <div className="dashboard-alert dashboard-alert--success" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{message}</div>}
-          {error && <div className="dashboard-alert dashboard-alert--error" style={{ marginTop: '0.8rem', marginBottom: 0 }}>{error}</div>}
+          {message && (
+            <div
+              className="dashboard-alert dashboard-alert--success"
+              style={{ marginTop: '0.8rem', marginBottom: 0 }}
+            >
+              {message}
+            </div>
+          )}
+          {error && (
+            <div
+              className="dashboard-alert dashboard-alert--error"
+              style={{ marginTop: '0.8rem', marginBottom: 0 }}
+            >
+              {error}
+            </div>
+          )}
 
           {step === 1 ? (
             <form onSubmit={sendOtp} className="auth-form">
               <div>
-                <label className="auth-label" htmlFor="email">Registered Email</label>
+                <label className="auth-label" htmlFor="email">
+                  Registered Email
+                </label>
                 <input
                   id="email"
                   type="email"
@@ -85,7 +103,9 @@ export default function ForgotPassword() {
           ) : (
             <form onSubmit={resetPassword} className="auth-form">
               <div>
-                <label className="auth-label" htmlFor="otp">OTP Code</label>
+                <label className="auth-label" htmlFor="otp">
+                  OTP Code
+                </label>
                 <input
                   id="otp"
                   value={code}
@@ -96,7 +116,9 @@ export default function ForgotPassword() {
                 />
               </div>
               <div>
-                <label className="auth-label" htmlFor="newPassword">New Password</label>
+                <label className="auth-label" htmlFor="newPassword">
+                  New Password
+                </label>
                 <input
                   id="newPassword"
                   type="password"

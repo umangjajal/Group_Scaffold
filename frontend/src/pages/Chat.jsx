@@ -29,14 +29,14 @@ export default function Chat() {
   useEffect(() => {
     // Connect socket
     socketRef.current = createSocketConnection({
-      auth: { token: accessToken }
+      auth: { token: accessToken },
     });
 
     socketRef.current.emit('join', { groupId });
 
     socketRef.current.on('message:new', (msg) => {
       if (msg.group === groupId) {
-        setMessages(prev => [...prev, msg]);
+        setMessages((prev) => [...prev, msg]);
       }
     });
 
@@ -74,15 +74,15 @@ export default function Chat() {
           padding: '10px',
           marginBottom: '10px',
           backgroundColor: '#f9f9f9',
-          borderRadius: '4px'
+          borderRadius: '4px',
         }}
       >
-        {messages.map(m => (
+        {messages.map((m) => (
           <div
             key={m._id}
             style={{
               marginBottom: '10px',
-              textAlign: m.sender._id === user.id ? 'right' : 'left'
+              textAlign: m.sender._id === user.id ? 'right' : 'left',
             }}
           >
             <div
@@ -93,7 +93,7 @@ export default function Chat() {
                 borderRadius: '15px',
                 maxWidth: '80%',
                 wordWrap: 'break-word',
-                boxShadow: '0 1px 1px rgba(0,0,0,0.1)'
+                boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
               }}
             >
               <div style={{ fontSize: '0.85em', fontWeight: 'bold', marginBottom: '4px' }}>
@@ -102,7 +102,11 @@ export default function Chat() {
               {m.text && <div>{m.text}</div>}
               {m.mediaUrl && (
                 <div>
-                  <img src={buildBackendUrl(m.mediaUrl)} alt="media" style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }} />
+                  <img
+                    src={buildBackendUrl(m.mediaUrl)}
+                    alt="media"
+                    style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }}
+                  />
                 </div>
               )}
               <div style={{ fontSize: '0.7em', color: '#999', marginTop: '4px' }}>
@@ -116,7 +120,7 @@ export default function Chat() {
       <textarea
         rows={3}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Type your message..."
         style={{ width: '100%', padding: '8px', borderRadius: '4px', resize: 'none' }}

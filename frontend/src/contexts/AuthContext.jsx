@@ -29,12 +29,12 @@ function persistValue(key, value) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser ] = useState(() => readStoredUser());
+  const [user, setUser] = useState(() => readStoredUser());
   const [accessToken, setAccessToken] = useState(() => localStorage.getItem('accessToken'));
   const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem('refreshToken'));
 
   const saveAuth = ({ user, accessToken, refreshToken }) => {
-    setUser (user);
+    setUser(user);
     setAccessToken(accessToken);
     setRefreshToken(refreshToken);
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    setUser (null);
+    setUser(null);
     setAccessToken(null);
     setRefreshToken(null);
     localStorage.removeItem('user');

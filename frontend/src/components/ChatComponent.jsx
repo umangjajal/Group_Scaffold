@@ -3,7 +3,13 @@ import { socket } from '../socket';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { buildBackendUrl } from '../network/config';
-import { PaperAirplaneIcon, FaceSmileIcon, PaperClipIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import {
+  PaperAirplaneIcon,
+  FaceSmileIcon,
+  PaperClipIcon,
+  DocumentIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/solid';
 import EmojiPicker from 'emoji-picker-react';
 
 export default function ChatComponent({ groupId }) {
@@ -40,7 +46,7 @@ export default function ChatComponent({ groupId }) {
     const onNewMessage = (msg) => {
       const messageGroupId = msg.group?._id || msg.group;
       if (String(messageGroupId) === String(groupId)) {
-        setMessages(prev => [...prev, msg]);
+        setMessages((prev) => [...prev, msg]);
       }
     };
 
@@ -61,8 +67,8 @@ export default function ChatComponent({ groupId }) {
         setShowEmoji(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const sendMessage = (e) => {
@@ -74,7 +80,7 @@ export default function ChatComponent({ groupId }) {
   };
 
   const onEmojiClick = (emojiData) => {
-    setText(prev => prev + emojiData.emoji);
+    setText((prev) => prev + emojiData.emoji);
   };
 
   const handleFileChange = async (e) => {
@@ -87,21 +93,21 @@ export default function ChatComponent({ groupId }) {
     setUploading(true);
     try {
       const { data } = await api.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      
+
       // Send message with file URL
       const fileText = `File: ${file.name}`;
-      socket.emit('message:send', { 
-        groupId, 
+      socket.emit('message:send', {
+        groupId,
         text: fileText,
-        mediaUrl: data.url 
+        mediaUrl: data.url,
       });
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.error || err.message));
     } finally {
       setUploading(false);
-      if(fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -110,7 +116,7 @@ export default function ChatComponent({ groupId }) {
       <div className="p-3 border-b border-[#333] text-[10px] font-bold uppercase text-gray-400 flex justify-between items-center">
         <span>Group Chat</span>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((m, i) => {
           const senderId = m.sender?._id || m.sender?.id || m.sender;
@@ -119,16 +125,29 @@ export default function ChatComponent({ groupId }) {
           return (
             <div key={m._id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <div className="flex items-center gap-2 mb-1">
-                {!isMe && <span className="text-[10px] font-bold text-blue-400">{m.sender?.name || 'User'}</span>}
-                <span className="text-[9px] text-gray-500">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                {!isMe && (
+                  <span className="text-[10px] font-bold text-blue-400">
+                    {m.sender?.name || 'User'}
+                  </span>
+                )}
+                <span className="text-[9px] text-gray-500">
+                  {new Date(m.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
               </div>
-              <div className={`px-3 py-2 rounded-lg text-sm max-w-[90%] break-words ${
-                isMe ? 'bg-[#007acc] text-white rounded-tr-none' : 'bg-[#2d2d2d] text-gray-200 rounded-tl-none'
-              }`}>
+              <div
+                className={`px-3 py-2 rounded-lg text-sm max-w-[90%] break-words ${
+                  isMe
+                    ? 'bg-[#007acc] text-white rounded-tr-none'
+                    : 'bg-[#2d2d2d] text-gray-200 rounded-tl-none'
+                }`}
+              >
                 {m.mediaUrl ? (
-                  <a 
-                    href={buildBackendUrl(m.mediaUrl)} 
-                    target="_blank" 
+                  <a
+                    href={buildBackendUrl(m.mediaUrl)}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 underline decoration-blue-400"
                   >
@@ -147,10 +166,10 @@ export default function ChatComponent({ groupId }) {
 
       {showEmoji && (
         <div className="absolute bottom-16 right-4 z-50" ref={emojiPickerRef}>
-          <EmojiPicker 
-            onEmojiClick={onEmojiClick} 
-            theme="dark" 
-            width={300} 
+          <EmojiPicker
+            onEmojiClick={onEmojiClick}
+            theme="dark"
+            width={300}
             height={400}
             skinTonesDisabled
             searchDisabled
@@ -160,40 +179,35 @@ export default function ChatComponent({ groupId }) {
 
       <form onSubmit={sendMessage} className="p-3 bg-[#252526] border-t border-[#333]">
         <div className="flex items-center gap-2 bg-[#3c3c3c] rounded-md px-2 py-1 relative">
-          <button 
-            type="button" 
+          <button
+            type="button"
             className={`transition-colors ${showEmoji ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}
             onClick={() => setShowEmoji(!showEmoji)}
           >
             <FaceSmileIcon className="w-5 h-5" />
           </button>
-          
-          <input 
+
+          <input
             value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder={uploading ? "Uploading..." : "Type a message..."}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={uploading ? 'Uploading...' : 'Type a message...'}
             className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-200 py-1"
             disabled={uploading}
           />
-          
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
-          />
-          
-          <button 
-            type="button" 
+
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+          <button
+            type="button"
             className="text-gray-400 hover:text-white disabled:opacity-50"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
             <PaperClipIcon className="w-5 h-5" />
           </button>
-          
-          <button 
-            type="submit" 
+
+          <button
+            type="submit"
             className="text-blue-500 hover:text-blue-400 disabled:opacity-50"
             disabled={!text.trim() || uploading}
           >

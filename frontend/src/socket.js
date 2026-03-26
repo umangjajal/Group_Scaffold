@@ -1,1 +1,1 @@
-export { socket, connectSocket, createSocketConnection } from "./network/socketClient";
+export { socket, connectSocket, createSocketConnection } from './network/socketClient';
