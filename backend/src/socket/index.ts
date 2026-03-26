@@ -32,7 +32,7 @@ export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, On
 
   // Enable Redis Adapter for Horizontal Scaling
   if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
-    io.adapter(createAdapter(pubClient, subClient));
+    io.adapter(createAdapter(pubClient, subClient) as any);
     console.log('🚀 Socket.io Redis Adapter Enabled');
   }
 

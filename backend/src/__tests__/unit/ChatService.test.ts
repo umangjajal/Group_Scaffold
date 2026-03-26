@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ChatService from '../../services/ChatService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import Plans from '../../models/Plan';
 import MessageRepository from '../../repositories/MessageRepository';
 import QuotaRepository from '../../repositories/QuotaRepository';
-import Plans from '../../models/Plan';
+import ChatService from '../../services/ChatService';
 
 vi.mock('../../repositories/MessageRepository');
 vi.mock('../../repositories/QuotaRepository');
