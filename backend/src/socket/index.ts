@@ -14,9 +14,12 @@ import {
   SocketData,
 } from '../types/socket.types';
 
-// Mocked for example - these should be converted to TS as well
-const registerChatHandlers = require('./chat.socket');
-const registerCallHandlers = require('./call.socket');
+// Reuse the existing JS socket handlers while the TS migration is in progress.
+const registerChatHandlers = require('../../socket/chat.socket');
+const registerCallHandlers = require('../../socket/call.socket');
+const registerCollabSocket = require('../../socket/collab');
+
+const rtcRooms = new Map();
 
 // rtcRooms is now managed by RTCService in Redis
 export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, OnlineUser>) {
@@ -84,7 +87,8 @@ export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, On
 
       // Register handlers
       registerChatHandlers(io, socket);
-      registerCallHandlers(io, socket);
+      registerCallHandlers(io, socket, rtcRooms);
+      registerCollabSocket(io, socket);
 
       socket.on('disconnect', async () => {
         console.log(`User disconnected: ${user.name}`);

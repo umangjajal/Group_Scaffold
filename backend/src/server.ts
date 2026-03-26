@@ -3,7 +3,7 @@ import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import cors from 'cors';
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
@@ -72,7 +72,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupsRoutes);
 
 // Health Check
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/health', (_req: Request, res: Response) => res.status(200).json({ status: 'ok' }));
 
 // Global Error Handler
 app.use(errorHandler);
