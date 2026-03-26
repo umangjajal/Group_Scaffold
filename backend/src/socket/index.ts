@@ -1,7 +1,10 @@
 import { Server, Socket } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { createCorsOriginValidator } from '../config/cors';
+import { pubClient, subClient } from '../config/redis';
+import PresenceService from '../services/PresenceService';
 import { 
     ServerToClientEvents, 
     ClientToServerEvents, 
@@ -13,8 +16,7 @@ import {
 const registerChatHandlers = require('./chat.socket');
 const registerCallHandlers = require('./call.socket');
 
-const rtcRooms = new Map<string, Map<string, { socketId: string; name: string }>>();
-
+// rtcRooms is now managed by RTCService in Redis
 export function attachSocket(httpServer: any, onlineUsers: Map<string, any>) {
     const io = new Server<
         ClientToServerEvents,
@@ -27,6 +29,12 @@ export function attachSocket(httpServer: any, onlineUsers: Map<string, any>) {
             credentials: true
         }
     });
+
+    // Enable Redis Adapter for Horizontal Scaling
+    if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
+        io.adapter(createAdapter(pubClient, subClient));
+        console.log('🚀 Socket.io Redis Adapter Enabled');
+    }
 
     io.use(async (socket, next) => {
         const token = socket.handshake.auth?.token;
@@ -47,30 +55,40 @@ export function attachSocket(httpServer: any, onlineUsers: Map<string, any>) {
         }
     });
 
-    io.on('connection', (socket: Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
+    io.on('connection', async (socket: Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>) => {
         const user = socket.data.user;
         if (!user) return;
 
-        console.log(`User connected: ${user.name} (${user.id})`);
+        const userId = user.id.toString();
+        console.log(`User connected: ${user.name} (${userId})`);
         
-        onlineUsers.set(user.id.toString(), {
-            userId: user.id,
+        const userData = {
+            userId: userId,
             name: user.name,
             socketId: socket.id,
-            connectedAt: new Date(),
-        });
+            connectedAt: new Date().toISOString(),
+        };
 
-        socket.join(`user:${user.id}`);
-        io.emit('presence', { userId: user.id.toString(), status: 'online' });
+        // Track globally in Redis
+        await PresenceService.setUserOnline(userId, userData);
 
-        // Register handlers (these will need TS conversion too)
+        // Keep local Map for backward compatibility if needed, though discouraged in production
+        onlineUsers.set(userId, userData);
+
+        socket.join(`user:${userId}`);
+        io.emit('presence', { userId: userId, status: 'online' });
+
+        // Register handlers
         registerChatHandlers(io, socket);
-        registerCallHandlers(io, socket, rtcRooms);
+        registerCallHandlers(io, socket);
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log(`User disconnected: ${user.name}`);
-            onlineUsers.delete(user.id.toString());
-            io.emit('presence', { userId: user.id.toString(), status: 'offline' });
+            
+            await PresenceService.setUserOffline(userId);
+            onlineUsers.delete(userId);
+
+            io.emit('presence', { userId: userId, status: 'offline' });
         });
     });
 
