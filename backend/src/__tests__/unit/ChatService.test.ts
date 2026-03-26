@@ -24,8 +24,8 @@ describe('ChatService', () => {
       const content = 'Hello';
       const userPlan = 'free';
 
-      mockedFindMessageQuota.mockResolvedValue({ count: 100 } as never);
-      mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as never);
+      mockedFindMessageQuota.mockResolvedValue({ count: 100 } as any);
+      mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as any);
 
       await expect(ChatService.sendMessage(userId, groupId, content, userPlan)).rejects.toThrow(
         'Daily message limit reached',
@@ -38,9 +38,9 @@ describe('ChatService', () => {
       const content = 'Hello';
       const userPlan = 'free';
 
-      mockedFindMessageQuota.mockResolvedValue({ count: 50 } as never);
-      mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as never);
-      mockedCreateMessage.mockResolvedValue({ id: 'msg123', content } as never);
+      mockedFindMessageQuota.mockResolvedValue({ count: 50 } as any);
+      mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as any);
+      mockedCreateMessage.mockResolvedValue({ id: 'msg123', content } as any);
 
       const result = await ChatService.sendMessage(userId, groupId, content, userPlan);
 

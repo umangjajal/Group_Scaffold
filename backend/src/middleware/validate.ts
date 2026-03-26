@@ -15,9 +15,9 @@ export const validate = (schema: ZodObject<ZodRawShape>) => {
         return res.status(400).json({
           status: 'error',
           message: 'Validation failed',
-          errors: error.issues.map((err) => ({
-            path: err.path.join('.'),
-            message: err.message,
+          errors: error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
           })),
         });
       }
