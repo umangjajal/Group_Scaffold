@@ -1,0 +1,29 @@
+{
+  "name": "realtime-group-app-scaffold",
+  "private": true,
+  "packageManager": "bun@1.3.9",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "bun run --workspaces --parallel dev",
+    "build": "cd backend && bun run build && cd ../frontend && bun run build",
+    "test": "cd backend && bun run test && cd ../frontend && bun run test",
+    "lint": "bun run lint:backend && bun run lint:frontend",
+    "format": "cd backend && bun run format && cd ../frontend && bun run format",
+    "check": "cd backend && bun run check && cd ../frontend && bun run check",
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && bun run dev",
+    "lint:backend": "cd backend && bun run lint",
+    "lint:frontend": "cd frontend && bun run lint"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  },
+  "trustedDependencies": [
+    "bcrypt",
+    "esbuild",
+    "mongodb-memory-server"
+  ]
+}

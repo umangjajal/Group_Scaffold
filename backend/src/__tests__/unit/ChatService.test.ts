@@ -9,6 +9,10 @@ vi.mock('../../repositories/QuotaRepository');
 vi.mock('../../models/Plan');
 
 describe('ChatService', () => {
+    const mockedFindMessageQuota = vi.mocked(QuotaRepository.findMessageQuota);
+    const mockedFindPlan = vi.mocked(Plans.findOne);
+    const mockedCreateMessage = vi.mocked(MessageRepository.create);
+
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -20,8 +24,8 @@ describe('ChatService', () => {
             const content = 'Hello';
             const userPlan = 'free';
 
-            (QuotaRepository.findMessageQuota as any).mockResolvedValue({ count: 100 });
-            (Plans.findOne as any).mockResolvedValue({ dailyMessageLimit: 100 });
+            mockedFindMessageQuota.mockResolvedValue({ count: 100 } as never);
+            mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as never);
 
             await expect(ChatService.sendMessage(userId, groupId, content, userPlan))
                 .rejects.toThrow('Daily message limit reached');
@@ -33,9 +37,9 @@ describe('ChatService', () => {
             const content = 'Hello';
             const userPlan = 'free';
 
-            (QuotaRepository.findMessageQuota as any).mockResolvedValue({ count: 50 });
-            (Plans.findOne as any).mockResolvedValue({ dailyMessageLimit: 100 });
-            (MessageRepository.create as any).mockResolvedValue({ id: 'msg123', content });
+            mockedFindMessageQuota.mockResolvedValue({ count: 50 } as never);
+            mockedFindPlan.mockResolvedValue({ dailyMessageLimit: 100 } as never);
+            mockedCreateMessage.mockResolvedValue({ id: 'msg123', content } as never);
 
             const result = await ChatService.sendMessage(userId, groupId, content, userPlan);
 

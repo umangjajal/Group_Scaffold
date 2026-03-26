@@ -12,6 +12,7 @@ import logger from './utils/logger';
 import { attachSocket } from './socket';
 import { createCorsOriginValidator } from './config/cors';
 import { errorHandler } from './middleware/errorHandler';
+import type { OnlineUser } from './types/socket.types';
 
 // Import routes
 // Note: These will need to be converted to TS as well, but for now we'll import as we migrate.
@@ -74,7 +75,7 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-const onlineUsers = new Map<string, any>();
+const onlineUsers = new Map<string, OnlineUser>();
 
 attachSocket(server, onlineUsers);
 

@@ -63,18 +63,23 @@ This scaffold now includes:
 
 ## Run locally
 
-### Backend
+### Bun workspace
 ```bash
-cd backend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-### Frontend
+### Package-specific commands
 ```bash
-cd frontend
-npm install
-npm run dev
+cd backend && bun run dev
+cd frontend && bun run dev
+```
+
+### Quality checks
+```bash
+bun run lint
+bun run format
+bun run check
 ```
 
 ## Notes

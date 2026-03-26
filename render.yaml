@@ -3,6 +3,6 @@ services:
     name: realtime-group-app-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: bun install && bun run build
+    startCommand: bun run start
     healthCheckPath: /health

@@ -1,4 +1,4 @@
-import { Document } from 'mongoose';
+import type { Document } from 'mongoose';
 
 export type UserRole = 'user' | 'admin';
 export type UserPlan = 'free' | 'premium' | 'vip' | 'viip';

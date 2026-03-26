@@ -1,3 +1,4 @@
+import type { Server as HttpServer } from 'node:http';
 import { Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import jwt from 'jsonwebtoken';
@@ -9,6 +10,7 @@ import {
     ServerToClientEvents, 
     ClientToServerEvents, 
     InterServerEvents, 
+    OnlineUser,
     SocketData 
 } from '../types/socket.types';
 
@@ -17,7 +19,7 @@ const registerChatHandlers = require('./chat.socket');
 const registerCallHandlers = require('./call.socket');
 
 // rtcRooms is now managed by RTCService in Redis
-export function attachSocket(httpServer: any, onlineUsers: Map<string, any>) {
+export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, OnlineUser>) {
     const io = new Server<
         ClientToServerEvents,
         ServerToClientEvents,

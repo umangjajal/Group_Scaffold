@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 
 export interface AppError extends Error {
   statusCode?: number;
-  details?: any;
+  details?: unknown;
 }
 
 export const errorHandler = (
