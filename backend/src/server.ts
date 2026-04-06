@@ -17,6 +17,7 @@ import logger from './utils/logger';
 // Import routes
 // Note: These will need to be converted to TS as well, but for now we'll import as we migrate.
 const authRoutes = require('../routes/auth');
+const collabRoutes = require('../routes/collab');
 const groupsRoutes = require('../routes/groups');
 
 const app = express();
@@ -69,6 +70,7 @@ mongoose
 // # API ROUTES
 // ---------------------------------
 app.use('/api/auth', authRoutes);
+app.use('/api/collab', collabRoutes);
 app.use('/api/groups', groupsRoutes);
 
 // Health Check

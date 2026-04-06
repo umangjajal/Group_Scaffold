@@ -182,7 +182,9 @@ router.post("/login", async (req, res) => {
       $or: [{ email: normalizedEmail }, { phone: identifier }],
     });
 
-    if (!user) return res.status(400).json({ error: "Invalid credentials." });
+    if (!user || !user.passwordHash) {
+      return res.status(400).json({ error: "Invalid credentials." });
+    }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) return res.status(400).json({ error: "Invalid credentials." });

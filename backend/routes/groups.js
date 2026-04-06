@@ -255,5 +255,44 @@ router.post("/:groupId/members/:userId", auth, async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
-  
+
+// POST /api/groups/:groupId/messages - Send a message
+router.post("/:groupId/messages", auth, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { text, mediaUrl } = req.body;
+
+    // Validate input
+    if (!text && !mediaUrl) {
+      return res.status(400).json({ error: "Message text or file URL is required." });
+    }
+
+    if (text && text.trim().length > 5000) {
+      return res.status(400).json({ error: "Message is too long (max 5000 characters)." });
+    }
+
+    // Check if user is member of group
+    const membership = await Membership.findOne({ user: req.user.id, group: groupId });
+    if (!membership) {
+      return res.status(403).json({ error: "You are not a member of this group." });
+    }
+
+    // Create message
+    const message = new Message({
+      group: groupId,
+      sender: req.user.id,
+      text: text || "",
+      mediaUrl: mediaUrl || null,
+    });
+
+    await message.save();
+    await message.populate("sender", "name avatarUrl");
+
+    return res.status(201).json(message);
+  } catch (error) {
+    console.error("Error sending message:", error);
+    return res.status(500).json({ error: "Server error sending message." });
+  }
+});
+
 module.exports = router;

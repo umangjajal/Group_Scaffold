@@ -25,5 +25,8 @@
     "bcrypt",
     "esbuild",
     "mongodb-memory-server"
-  ]
+  ],
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1"
+  }
 }

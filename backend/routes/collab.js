@@ -276,6 +276,66 @@ router.post('/groups/:groupId/files', asyncHandler(async (req, res) => {
   }
 }));
 
+router.post('/groups/:groupId/folders', asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+  const { name } = req.body || {};
+  const normalizedFolderName = normalizeFileName(String(name || '').replace(/\/+$/, ''));
+
+  if (!isValidId(groupId)) return res.status(400).json({ error: 'Invalid groupId.' });
+  if (!normalizedFolderName) return res.status(400).json({ error: 'A valid folder name is required.' });
+
+  const membership = await ensureMembership(groupId, req.user.id);
+  if (!membership) return res.status(403).json({ error: 'Not a group member.' });
+
+  const folderPrefix = `${normalizedFolderName}/`;
+  const placeholderName = `${normalizedFolderName}/.keep`;
+  const conflictingEntry = await CollabFile.findOne({
+    group: groupId,
+    $or: [
+      { name: normalizedFolderName },
+      { name: placeholderName },
+      { name: { $regex: `^${folderPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` } },
+    ],
+  }).select('_id');
+
+  if (conflictingEntry) {
+    return res.status(409).json({ error: 'A file or folder with that name already exists.' });
+  }
+
+  const folderDir = path.join(BASE_DIR, String(groupId), normalizedFolderName);
+  await fs.promises.mkdir(folderDir, { recursive: true });
+
+  const placeholderFile = await CollabFile.create({
+    group: groupId,
+    name: placeholderName,
+    type: 'document',
+    content: { text: '' },
+    createdBy: req.user.id,
+  });
+
+  await CollabVersion.create({
+    file: placeholderFile._id,
+    group: placeholderFile.group,
+    version: placeholderFile.latestVersion,
+    parentVersion: null,
+    snapshot: placeholderFile.content,
+    patchSummary: 'Folder placeholder',
+    author: req.user.id,
+    branch: 'main',
+  });
+
+  await syncToDisk(placeholderFile.group, placeholderFile.name, placeholderFile.content);
+  await ActivityLog.create({
+    group: groupId,
+    file: placeholderFile._id,
+    user: req.user.id,
+    action: 'folder_created',
+    metadata: { folderName: normalizedFolderName },
+  });
+
+  return res.status(201).json({ name: normalizedFolderName, placeholderId: placeholderFile._id });
+}));
+
 router.get('/files/:fileId', asyncHandler(async (req, res) => {
   const { fileId } = req.params;
   if (!isValidId(fileId)) return res.status(400).json({ error: 'Invalid fileId.' });

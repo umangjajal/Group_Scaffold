@@ -31,7 +31,6 @@ module.exports = (io, socket) => {
             socket.emit('error', { message: err.message });
         }
     });
-...
     socket.on('chat:typing', ({ groupId }) => {
         socket.to(`group:${groupId}`).emit('chat:typing', {
             userId: socket.user.id,

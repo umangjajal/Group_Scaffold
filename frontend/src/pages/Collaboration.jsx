@@ -1,26 +1,26 @@
+import {
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CloudArrowDownIcon,
+  DocumentIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  PlusIcon,
+  QueueListIcon,
+  Square2StackIcon,
+  TrashIcon,
+  UsersIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
+import Editor, { DiffEditor } from '@monaco-editor/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api';
-import { socket, connectSocket } from '../socket';
-import Editor, { DiffEditor } from '@monaco-editor/react';
-import {
-  FolderIcon,
-  DocumentIcon,
-  ChevronRightIcon,
-  ChevronDownIcon,
-  CloudArrowDownIcon,
-  ArrowPathIcon,
-  TrashIcon,
-  PlusIcon,
-  FolderPlusIcon,
-  ChatBubbleLeftRightIcon,
-  UsersIcon,
-  XMarkIcon,
-  Square2StackIcon,
-  QueueListIcon,
-} from '@heroicons/react/24/outline';
 import ChatComponent from '../components/ChatComponent';
 import MemberListComponent from '../components/MemberListComponent';
+import { connectSocket, socket } from '../socket';
 import '../styles/vscode.css';
 
 const SourceControlView = ({ groupId, onOpenDiff }) => {
@@ -156,26 +156,58 @@ const SourceControlView = ({ groupId, onOpenDiff }) => {
   );
 };
 
+function normalizeWorkspacePath(value = '') {
+  return String(value)
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '');
+}
+
+function getParentDirectory(filePath = '') {
+  const parts = normalizeWorkspacePath(filePath).split('/').filter(Boolean);
+  parts.pop();
+  return parts.join('/');
+}
+
+function joinWorkspacePath(basePath = '', entryName = '') {
+  const normalizedBase = normalizeWorkspacePath(basePath);
+  const normalizedEntry = normalizeWorkspacePath(entryName);
+  if (!normalizedBase) return normalizedEntry;
+  if (!normalizedEntry) return normalizedBase;
+  return `${normalizedBase}/${normalizedEntry}`;
+}
+
 const FileTreeItem = ({
   item,
   level,
-  onSelect,
+  onSelectFile,
+  onSelectFolder,
   onItemDelete,
-  selectedId,
+  onStartCreateEntry,
+  selectedExplorer,
   expandedFolders,
   toggleFolder,
 }) => {
   const isFolder = item.type === 'folder';
   const isExpanded = expandedFolders[item.path];
   const paddingLeft = level * 12 + 10;
+  const isSelectedFolder =
+    isFolder &&
+    selectedExplorer.type === 'folder' &&
+    selectedExplorer.path === (item.relativePath || '');
+  const isSelectedFile =
+    !isFolder && selectedExplorer.type === 'file' && selectedExplorer.path === item.relativePath;
 
   if (isFolder) {
     return (
       <div>
         <div
-          className="vscode-file-item"
+          className={`vscode-file-item group ${isSelectedFolder ? 'active' : ''}`}
           style={{ paddingLeft: `${paddingLeft}px` }}
-          onClick={() => toggleFolder(item.path)}
+          onClick={() => {
+            onSelectFolder(item.relativePath || '');
+            toggleFolder(item.path);
+          }}
         >
           {isExpanded ? (
             <ChevronDownIcon className="w-4 h-4 mr-1" />
@@ -183,7 +215,29 @@ const FileTreeItem = ({
             <ChevronRightIcon className="w-4 h-4 mr-1" />
           )}
           <FolderIcon className="w-4 h-4 mr-1 text-blue-400" />
-          <span>{item.name}</span>
+          <span className="flex-1 overflow-hidden text-ellipsis">{item.name}</span>
+          <div className="ml-auto hidden items-center gap-1 group-hover:flex">
+            <button
+              className="rounded p-1 text-gray-400 hover:bg-[#37373d] hover:text-white"
+              title={`New file in ${item.relativePath || 'workspace'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartCreateEntry('file', item.relativePath || '');
+              }}
+            >
+              <DocumentIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              className="rounded p-1 text-gray-400 hover:bg-[#37373d] hover:text-white"
+              title={`New folder in ${item.relativePath || 'workspace'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartCreateEntry('folder', item.relativePath || '');
+              }}
+            >
+              <FolderPlusIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         {isExpanded &&
           Object.values(item.children)
@@ -196,9 +250,11 @@ const FileTreeItem = ({
                 key={child.path || child._id}
                 item={child}
                 level={level + 1}
-                onSelect={onSelect}
+                onSelectFile={onSelectFile}
+                onSelectFolder={onSelectFolder}
                 onItemDelete={onItemDelete}
-                selectedId={selectedId}
+                onStartCreateEntry={onStartCreateEntry}
+                selectedExplorer={selectedExplorer}
                 expandedFolders={expandedFolders}
                 toggleFolder={toggleFolder}
               />
@@ -209,9 +265,9 @@ const FileTreeItem = ({
 
   return (
     <div
-      className={`vscode-file-item group ${selectedId === item._id ? 'active' : ''}`}
+      className={`vscode-file-item group ${isSelectedFile ? 'active' : ''}`}
       style={{ paddingLeft: `${paddingLeft}px` }}
-      onClick={() => onSelect(item._id)}
+      onClick={() => onSelectFile(item._id, item.relativePath)}
     >
       <DocumentIcon className="w-4 h-4 mr-1 text-gray-400" />
       <span className="flex-1 overflow-hidden text-ellipsis">{item.name.split('/').pop()}</span>
@@ -233,8 +289,10 @@ export default function Collaboration() {
   const [files, setFiles] = useState([]);
   const [selectedFileId, setSelectedFileId] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedExplorer, setSelectedExplorer] = useState({ type: 'folder', path: '' });
   const [error, setError] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({ root: true });
+  const [createDraft, setCreateDraft] = useState(null);
   const [githubUrl, setGithubUrl] = useState('');
   const [showGithubModal, setShowGithubModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -247,6 +305,18 @@ export default function Collaboration() {
   const [fetchingRepos, setFetchingRepos] = useState(false);
 
   const editorRef = useRef(null);
+  const createInputRef = useRef(null);
+
+  const activeFolderPath =
+    selectedExplorer.type === 'folder'
+      ? selectedExplorer.path
+      : getParentDirectory(selectedExplorer.path);
+
+  useEffect(() => {
+    if (createDraft) {
+      createInputRef.current?.focus();
+    }
+  }, [createDraft]);
 
   useEffect(() => {
     connectSocket();
@@ -295,15 +365,27 @@ export default function Collaboration() {
   };
 
   const fileTree = useMemo(() => {
-    const root = { name: 'Workspace', type: 'folder', children: {}, path: 'root' };
+    const root = {
+      name: 'Workspace',
+      type: 'folder',
+      children: {},
+      path: 'root',
+      relativePath: '',
+    };
     files.forEach((file) => {
-      const parts = file.name.split('/');
+      const isPlaceholder = file.name.endsWith('/.keep') || file.name === '.keep';
+      const parts = (
+        isPlaceholder ? file.name.split('/').slice(0, -1) : file.name.split('/')
+      ).filter(Boolean);
+      if (parts.length === 0) return;
+
       let current = root;
       let currentPath = 'root';
       parts.forEach((part, index) => {
         currentPath += '/' + part;
-        if (index === parts.length - 1) {
-          current.children[part] = { ...file, type: 'file', path: currentPath };
+        const relativePath = parts.slice(0, index + 1).join('/');
+        if (!isPlaceholder && index === parts.length - 1) {
+          current.children[part] = { ...file, type: 'file', path: currentPath, relativePath };
         } else {
           if (!current.children[part]) {
             current.children[part] = {
@@ -311,6 +393,7 @@ export default function Collaboration() {
               type: 'folder',
               children: {},
               path: currentPath,
+              relativePath,
             };
           }
           current = current.children[part];
@@ -320,22 +403,68 @@ export default function Collaboration() {
     return root;
   }, [files]);
 
+  const expandFolderChain = (workspacePath = '') => {
+    const normalizedPath = normalizeWorkspacePath(workspacePath);
+    setExpandedFolders((prev) => {
+      const next = { ...prev, root: true };
+      let currentPath = 'root';
+
+      normalizedPath
+        .split('/')
+        .filter(Boolean)
+        .forEach((segment) => {
+          currentPath += `/${segment}`;
+          next[currentPath] = true;
+        });
+
+      return next;
+    });
+  };
+
+  const startCreateEntry = (kind, basePath = activeFolderPath) => {
+    const normalizedBasePath = normalizeWorkspacePath(basePath);
+    expandFolderChain(normalizedBasePath);
+    setSelectedExplorer({ type: 'folder', path: normalizedBasePath });
+    setCreateDraft({ kind, basePath: normalizedBasePath, value: '' });
+  };
+
+  const submitCreateEntry = async () => {
+    if (!createDraft?.value?.trim()) return;
+
+    const targetPath = joinWorkspacePath(createDraft.basePath, createDraft.value);
+    if (!targetPath) return;
+
+    if (createDraft.kind === 'folder') {
+      await createFolder(targetPath);
+    } else {
+      await createFile(targetPath);
+    }
+  };
+
   async function fetchFiles() {
     try {
       const { data } = await api.get(`/collab/groups/${groupId}/files`);
       setFiles(data);
-      if (!selectedFileId && data[0] && !diffFile) selectFile(data[0]._id);
+      if (!selectedFileId && !diffFile) {
+        // Select the first non-.keep file
+        const firstFile = data.find((f) => !f.name.endsWith('/.keep') && f.name !== '.keep');
+        if (firstFile) selectFile(firstFile._id, firstFile.name);
+      }
     } catch (e) {
       setError(e.response?.data?.error || 'Failed to fetch files.');
     }
   }
 
-  async function selectFile(fileId) {
+  async function selectFile(fileId, filePath = '') {
     if (!fileId) return;
     try {
+      setCreateDraft(null);
       setDiffFile(null);
       setSelectedFileId(fileId);
       const { data } = await api.get(`/collab/files/${fileId}`);
+      const resolvedPath = data?.name || filePath;
+      expandFolderChain(getParentDirectory(resolvedPath));
+      setSelectedExplorer({ type: 'file', path: resolvedPath });
       setSelectedFile(data);
       socket.emit('collab:file:join', { fileId });
     } catch (e) {
@@ -344,14 +473,17 @@ export default function Collaboration() {
   }
 
   async function createFile(name) {
-    if (!name?.trim()) return;
+    const normalizedName = normalizeWorkspacePath(name);
+    if (!normalizedName) return;
     try {
       const { data } = await api.post(`/collab/groups/${groupId}/files`, {
-        name: name.trim(),
+        name: normalizedName,
         type: 'code',
       });
+      expandFolderChain(getParentDirectory(normalizedName));
+      setCreateDraft(null);
       await fetchFiles();
-      await selectFile(data._id);
+      await selectFile(data._id, data.name || normalizedName);
     } catch (err) {
       setError(err.response?.data?.error || 'Creation failed.');
     }
@@ -363,11 +495,35 @@ export default function Collaboration() {
       if (selectedFileId === fileId) {
         setSelectedFileId('');
         setSelectedFile(null);
+        setSelectedExplorer({ type: 'folder', path: activeFolderPath });
       }
       await fetchFiles();
     } catch (err) {
       setError(err.response?.data?.error || 'Delete failed.');
     }
+  }
+
+  async function createFolder(name) {
+    const normalizedName = normalizeWorkspacePath(name);
+    if (!normalizedName) return;
+    try {
+      await api.post(`/collab/groups/${groupId}/folders`, {
+        name: normalizedName,
+      });
+      expandFolderChain(normalizedName);
+      setSelectedExplorer({ type: 'folder', path: normalizedName });
+      setCreateDraft(null);
+      await fetchFiles();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Folder creation failed.');
+    }
+  }
+
+  function selectFolder(folderPath = '') {
+    const normalizedFolderPath = normalizeWorkspacePath(folderPath);
+    expandFolderChain(normalizedFolderPath);
+    setCreateDraft(null);
+    setSelectedExplorer({ type: 'folder', path: normalizedFolderPath });
   }
 
   async function saveFile() {
@@ -456,22 +612,10 @@ export default function Collaboration() {
         <div className="vscode-menubar-item">
           File
           <div className="vscode-dropdown">
-            <div
-              className="vscode-dropdown-item"
-              onClick={() => {
-                const n = prompt('New file path:');
-                if (n) createFile(n);
-              }}
-            >
+            <div className="vscode-dropdown-item" onClick={() => startCreateEntry('file')}>
               New File
             </div>
-            <div
-              className="vscode-dropdown-item"
-              onClick={() => {
-                const n = prompt('New folder path:');
-                if (n) createFile(`${n}/.keep`);
-              }}
-            >
+            <div className="vscode-dropdown-item" onClick={() => startCreateEntry('folder')}>
               New Folder
             </div>
             <div className="vscode-dropdown-divider" />
@@ -597,43 +741,101 @@ export default function Collaboration() {
           <aside className="vscode-sidebar">
             {activeSidebar === 'explorer' ? (
               <>
-                <div className="vscode-sidebar-header flex justify-between items-center">
-                  <span>EXPLORER</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const name = prompt(
-                          'Enter file name (can include paths, e.g. src/index.js)',
-                        );
-                        if (name) createFile(name);
-                      }}
-                      title="New File"
-                      className="hover:text-blue-400"
-                    >
-                      <DocumentIcon className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const name = prompt('Enter folder name:');
-                        if (name) createFile(`${name}/.keep`);
-                      }}
-                      title="New Folder"
-                      className="hover:text-blue-400"
-                    >
-                      <FolderPlusIcon className="w-4 h-4" />
-                    </button>
-                    <button onClick={syncFs} title="Refresh/Sync" className="hover:text-blue-400">
-                      <ArrowPathIcon className="w-4 h-4" />
-                    </button>
+                <div className="vscode-sidebar-header border-b border-[#333]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                      </div>
+                      <div className="mt-1 text-[11px] text-gray-500">                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => startCreateEntry('file')}
+                        title="New File"
+                        className="rounded p-1.5 text-gray-400 hover:bg-[#333] hover:text-white"
+                      >
+                        <DocumentIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => startCreateEntry('folder')}
+                        title="New Folder"
+                        className="rounded p-1.5 text-gray-400 hover:bg-[#333] hover:text-white"
+                      >
+                        <FolderPlusIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={syncFs}
+                        title="Refresh/Sync"
+                        className="rounded p-1.5 text-gray-400 hover:bg-[#333] hover:text-white"
+                      >
+                        <ArrowPathIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+                  {createDraft && (
+                    <div className="mt-3 rounded-md border border-[#333] bg-[#1f1f20] p-2.5">
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.12em] text-gray-500">
+                        {createDraft.kind === 'folder' ? 'Create Folder' : 'Create File'}
+                      </div>
+                      <div className="mb-2 text-[11px] text-gray-400">
+                        In {createDraft.basePath || '/'}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={createInputRef}
+                          className="vscode-input !py-2 text-xs"
+                          placeholder={
+                            createDraft.kind === 'folder'
+                              ? 'components or src/components'
+                              : 'index.js or src/index.js'
+                          }
+                          value={createDraft.value}
+                          onChange={(e) =>
+                            setCreateDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    value: e.target.value,
+                                  }
+                                : current,
+                            )
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              submitCreateEntry();
+                            }
+                            if (e.key === 'Escape') {
+                              setCreateDraft(null);
+                            }
+                          }}
+                        />
+                        <button
+                          className="btn btn--primary !px-3 !py-2"
+                          onClick={submitCreateEntry}
+                        >
+                          Create
+                        </button>
+                        <button
+                          className="btn btn--ghost !px-3 !py-2"
+                          onClick={() => setCreateDraft(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="vscode-sidebar-content">
+                <div className="px-3 py-2 text-[11px] text-gray-500">
+                </div>
+                <div className="vscode-sidebar-content pt-0">
                   <FileTreeItem
                     item={fileTree}
                     level={0}
-                    onSelect={selectFile}
+                    onSelectFile={selectFile}
+                    onSelectFolder={selectFolder}
                     onItemDelete={deleteFile}
-                    selectedId={selectedFileId}
+                    onStartCreateEntry={startCreateEntry}
+                    selectedExplorer={selectedExplorer}
                     expandedFolders={expandedFolders}
                     toggleFolder={toggleFolder}
                   />
@@ -648,6 +850,15 @@ export default function Collaboration() {
         {/* Main Content */}
         <main className="vscode-main">
           <div className="vscode-editor-area">
+            <div className="border-b border-[#2b2b2b] bg-[#252526] px-4 py-2 text-xs text-gray-400">
+              {diffFile
+                ? `Diffing ${diffFile.name}`
+                : selectedFile
+                  ? selectedFile.name
+                  : activeFolderPath
+                    ? `Workspace: ${activeFolderPath}`
+                    : 'Workspace root'}
+            </div>
             <div className="vscode-tabs">
               {selectedFile && (
                 <div className="vscode-tab active">{selectedFile.name.split('/').pop()}</div>

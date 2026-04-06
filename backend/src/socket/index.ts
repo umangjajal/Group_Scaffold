@@ -4,7 +4,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { createCorsOriginValidator } from '../config/cors';
-import { pubClient, subClient } from '../config/redis';
+import { pubClient, redisEnabled, subClient } from '../config/redis';
 import PresenceService from '../services/PresenceService';
 import {
   ServerToClientEvents,
@@ -34,7 +34,7 @@ export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, On
   );
 
   // Enable Redis Adapter for Horizontal Scaling
-  if (process.env.REDIS_URL || process.env.NODE_ENV === 'production') {
+  if (redisEnabled && pubClient && subClient) {
     io.adapter(createAdapter(pubClient, subClient) as any);
     console.log('🚀 Socket.io Redis Adapter Enabled');
   }
@@ -50,6 +50,7 @@ export function attachSocket(httpServer: HttpServer, onlineUsers: Map<string, On
       if (!user || user.status === 'suspended') {
         return next(new Error('Authentication error: User not found or suspended.'));
       }
+      (socket as any).user = user;
       socket.data.user = user;
       next();
     } catch (err) {

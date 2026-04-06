@@ -8,7 +8,7 @@ import {
   FaceSmileIcon,
   PaperClipIcon,
   DocumentIcon,
-  XMarkIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/solid';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -18,6 +18,7 @@ export default function ChatComponent({ groupId }) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -71,12 +72,23 @@ export default function ChatComponent({ groupId }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e?.preventDefault();
-    if (!text.trim()) return;
-    socket.emit('message:send', { groupId, text });
-    setText('');
-    setShowEmoji(false);
+    if (!text.trim() || sending) return;
+
+    setSending(true);
+    try {
+      const { data: newMessage } = await api.post(`/groups/${groupId}/messages`, {
+        text: text.trim(),
+      });
+      setMessages((prev) => [...prev, newMessage]);
+      setText('');
+      setShowEmoji(false);
+    } catch (error) {
+      alert('Failed to send message: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSending(false);
+    }
   };
 
   const onEmojiClick = (emojiData) => {
@@ -87,24 +99,59 @@ export default function ChatComponent({ groupId }) {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Check file type
+    const allowedExtensions = ['.pdf', '.xlsx', '.xls', '.csv'];
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv',
+    ];
+
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedExtensions.includes(fileExtension) && !allowedMimeTypes.includes(file.type)) {
+      alert('Only PDF and spreadsheet files (XLSX, XLS, CSV) are allowed');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
 
     setUploading(true);
     try {
-      const { data } = await api.post('/upload', formData, {
+      // Upload file
+      const uploadResponse = await api.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
+      const uploadData = uploadResponse.data;
+      
+      if (!uploadData.url) {
+        throw new Error('No file URL returned from upload');
+      }
+
       // Send message with file URL
-      const fileText = `File: ${file.name}`;
-      socket.emit('message:send', {
-        groupId,
+      const fileText = `📎 ${file.name}`;
+      const messageResponse = await api.post(`/groups/${groupId}/messages`, {
         text: fileText,
-        mediaUrl: data.url,
+        mediaUrl: uploadData.url,
       });
+
+      if (!messageResponse.data) {
+        throw new Error('Failed to create message');
+      }
+
+      // Add new message to chat immediately
+      setMessages((prev) => [...prev, messageResponse.data]);
     } catch (err) {
-      alert('Upload failed: ' + (err.response?.data?.error || err.message));
+      console.error('Upload/message error:', err);
+      const errorMsg = err.response?.data?.error || err.message || 'Upload failed';
+      alert('Error: ' + errorMsg);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -122,6 +169,16 @@ export default function ChatComponent({ groupId }) {
           const senderId = m.sender?._id || m.sender?.id || m.sender;
           const currentUserId = user?.id || user?._id;
           const isMe = String(senderId) === String(currentUserId);
+          
+          const handleDownload = () => {
+            const link = document.createElement('a');
+            link.href = buildBackendUrl(m.mediaUrl);
+            link.download = m.text?.replace('📎 ', '') || 'file';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          };
+
           return (
             <div key={m._id || i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <div className="flex items-center gap-2 mb-1">
@@ -145,15 +202,17 @@ export default function ChatComponent({ groupId }) {
                 }`}
               >
                 {m.mediaUrl ? (
-                  <a
-                    href={buildBackendUrl(m.mediaUrl)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 underline decoration-blue-400"
-                  >
-                    <DocumentIcon className="w-4 h-4" />
-                    {m.text || 'View File'}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <DocumentIcon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{m.text || 'File'}</span>
+                    <button
+                      onClick={handleDownload}
+                      className="text-blue-300 hover:text-blue-100 flex-shrink-0 ml-2"
+                      title="Download file"
+                    >
+                      <ArrowDownTrayIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 ) : (
                   m.text
                 )}
@@ -190,18 +249,19 @@ export default function ChatComponent({ groupId }) {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={uploading ? 'Uploading...' : 'Type a message...'}
+            placeholder={uploading ? 'Uploading...' : sending ? 'Sending...' : 'Type a message...'}
             className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-200 py-1"
-            disabled={uploading}
+            disabled={uploading || sending}
           />
 
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf,.xlsx,.xls,.csv" />
 
           <button
             type="button"
             className="text-gray-400 hover:text-white disabled:opacity-50"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || sending}
+            title="Attach file (PDF or Spreadsheet)"
           >
             <PaperClipIcon className="w-5 h-5" />
           </button>
@@ -209,7 +269,7 @@ export default function ChatComponent({ groupId }) {
           <button
             type="submit"
             className="text-blue-500 hover:text-blue-400 disabled:opacity-50"
-            disabled={!text.trim() || uploading}
+            disabled={!text.trim() || uploading || sending}
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>

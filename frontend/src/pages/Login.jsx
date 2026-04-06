@@ -51,7 +51,13 @@ export default function Login() {
       const destination = res.data?.user?.role === 'admin' ? '/admin' : '/groups';
       navigate(destination);
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      const serverMessage = err.response?.data?.error;
+      const fallbackMessage =
+        err.response?.status === 500
+          ? 'Backend server is unavailable. Start the API server on http://localhost:4000.'
+          : 'Login failed';
+
+      setError(serverMessage || fallbackMessage);
     } finally {
       setLoading(false);
     }
