@@ -1,5 +1,5 @@
 // backend/models/Plan.js
-module.exports = {
+const plans = {
     free: {
         maxGroupsJoin: 10,
         maxGroupsCreate: 10,
@@ -28,4 +28,35 @@ module.exports = {
         dailyMessages: 100000,
         maxMediaMB: 250
     }
+};
+
+function normalizePlanName(name) {
+    return String(name || 'free').trim().toLowerCase();
+}
+
+function toPlanRecord(name, plan) {
+    if (!plan) {
+        return null;
+    }
+
+    return {
+        name,
+        ...plan,
+        dailyMessageLimit: plan.dailyMessages
+    };
+}
+
+async function findOne(query = {}) {
+    const name = normalizePlanName(query.name);
+    return toPlanRecord(name, plans[name]);
+}
+
+function get(name) {
+    return plans[normalizePlanName(name)] || null;
+}
+
+module.exports = {
+    ...plans,
+    findOne,
+    get
 };
